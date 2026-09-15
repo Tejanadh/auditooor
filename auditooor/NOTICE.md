@@ -10,3 +10,7 @@ auditooor adds: reward-first EV/novelty/proof gates, the Rust `auditooor-scan`
 pre-filter (xray/pack/harness/fork PoC), coverage wave 2, independent skeptics,
 Immunefi-shaped fork proofs, spec-divergence and lifecycle hunters, and the
 outcome ledger.
+
+`references/exploit-patterns.md` and `references/hunters/money-map-agent.md`
+come from the CritFindsAudit engine (https://github.com/critfinds/critfinds-Audit-Skill,
+MIT). Danger-keyword census is the v2 Turn 2 recon, compiled into `auditooor-scan danger`.

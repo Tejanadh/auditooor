@@ -24,6 +24,13 @@ When auditooor hunts, it does **not** spawn one or two generic agents. It spawns
 | `numerical-gap-agent` | overflow/underflow/unchecked, downcast, wraparound |
 | `periphery-agent` | routers/wrappers/adapters/migration glue — the un-audited seam |
 | `trust-gap-agent` | trusted-input assumptions: oracle, token, callback, external return values |
+| `spec-divergence-agent` | docs/NatSpec/spec claim vs what the code actually does |
+| `lifecycle-agent` | init → operate → pause → upgrade → sunset; guards that die on a transition |
+| `money-map-agent` | **isolated** accounting-first (CritFinds Agent 8). No vector list, no other agent's map. Builds its own books. |
+
+Default spawn is the original 12. **DEEP** adds spec-divergence, lifecycle, money-map (15). `--quick` / QUICK: `access-control`, `economic-security`, `invariant`, `math-precision`, `flow-gap`, `periphery`, `money-map`.
+
+**Money-map isolation (HARD):** do **not** inject the xray impact map or other agents' FINDINGs into the money-map prompt. Source bundle + `exploit-patterns.md` rounding/AC recipes only. Agreement with the 12 is only a signal if this agent started from the code.
 
 (Also read `{engine}/references/hacking-agents/shared-rules.md`, `senior-auditor-sop.md`, and `bounty-rules.md` — every agent inherits these.)
 

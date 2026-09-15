@@ -250,6 +250,8 @@ pub fn generate(root: &Path, top: usize) -> String {
     out.push_str(&crate::props::to_json(&prop_seeds));
     out.push_str(",\n  \"deltas\": ");
     out.push_str(&crate::deltas::to_json(&all_deltas, &gaps));
+    out.push_str(",\n  \"danger\": ");
+    out.push_str(&crate::danger::to_json(&crate::danger::scan(root)));
     out.push_str(",\n  \"git\": ");
     out.push_str(&git.to_json());
     out.push_str("\n}\n");
@@ -275,5 +277,6 @@ mod tests {
         assert!(json.contains("\"properties\""));
         assert!(json.contains("\"protocol_types\""));
         assert!(json.contains("\"deltas\""));
+        assert!(json.contains("\"danger\""));
     }
 }

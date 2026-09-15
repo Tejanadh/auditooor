@@ -25,6 +25,7 @@ fn main() {
         "surface" => cmd_surface(&args[2..]),
         "xray" => cmd_xray(&args[2..]),
         "pack" => cmd_pack(&args[2..]),
+        "danger" => cmd_danger(&args[2..]),
         "entries" => cmd_entries(&args[2..]),
         "fingerprint" => cmd_fingerprint(&args[2..]),
         "harness" => cmd_harness(&args[2..]),
@@ -116,6 +117,12 @@ fn cmd_pack(args: &[String]) {
         exit(2);
     }
     cmd_xray(args);
+}
+
+fn cmd_danger(args: &[String]) {
+    let dir = args.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str()).unwrap_or(".");
+    let hits = auditooor_scan::danger::scan(Path::new(dir));
+    print!("{}", auditooor_scan::danger::to_json(&hits));
 }
 
 fn cmd_entries(args: &[String]) {

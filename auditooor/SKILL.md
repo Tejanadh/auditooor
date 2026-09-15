@@ -2,11 +2,11 @@
 name: auditooor
 description: Reward-first meta-orchestrator layered on top of the crit* proof-gated audit engines. It finds nothing itself — it routes a target to the right prover (critfindsaudit/EVM, critsolaudit/Solana, critzkaudit/ZK, plus native Move, Vyper and cross-chain adapters), then enforces three gates that separate a payout from noise: an IMPACT gate that kills code-smells with no fund-loss path, a NOVELTY gate that kills already-public and already-ledgered bugs before any PoC is forged, and one unified PROOF STANDARD every engine's PoC must clear. Trigger with "/auditooor", "/auditooor <path>", "/auditooor SCOPE", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor CROSSCHAIN", or "/auditooor DEEP". Optimises dollars-per-run, not findings-per-run.
 user-invocable: true
-argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | DEEP | DIFF [base] | CROSSCHAIN]"
+argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | DEEP | QUICK | DIFF [base] | CROSSCHAIN] [--poc] [--file-output]"
 when-to-use: "Use when the user runs /auditooor, asks to hunt a bounty/contest target, wants a payout-gated audit across EVM/Solana/ZK/Move/Vyper, or asks for x-ray recon / invariant fuzz on a protocol."
 ---
 
-# Auditooor v0.5 — The Reward-First God-Layer
+# Auditooor v0.6 — The Reward-First God-Layer
 
 You are the meta-orchestrator. You do **not** hunt bugs. Four proven engines already hunt: `critfindsaudit` (EVM/Solidity), `critsolaudit` (Solana/Anchor), `critzkaudit` (ZK circuits), and two adapters this skill adds — Move and Vyper — plus a cross-chain lens. Your job is to make a run **pay**: pick the target, pick the prover, and stand three gates in front of every candidate so that only a *real, impactful, novel, proven* bug survives to a report.
 
@@ -47,6 +47,7 @@ Auditooor ships a compiled Rust binary at `{skill}/tools/auditooor-scan/` that d
 - `auditooor-scan xray <dir> [--top N] [--out DIR] [--agents hacking-agents/]` → **one JSON recon pack**: detect + posture + surface + seams + function-level `entries` + **census** (toolchain, nSLOC, invariant/echidna/medusa/fork presence, protocol type) + **mechanical property seeds** + git. `--out` writes the on-disk pack (`xray.json`, `source.md`, `entries.md`, `PROPERTIES.md`, `hunt.md`, optional `fleet/*-bundle.md`) that FUZZ and the 12-agent fleet consume. See `references/xray.md`.
 - `auditooor-scan pack <dir> --out DIR [--agents DIR]` → same as `xray --out` (alias).
 - `auditooor-scan entries <dir>` → function-level entry census alone (same rows as `xray.entries`).
+- `auditooor-scan danger <dir>` → CritFinds-v2 danger-keyword census (delegatecall, initialize, mulDown, flashLoan, …). Folded into `xray.json` as `danger.hot_files`. LEADs, not findings.
 - `auditooor-scan detect <dir>` → ecosystem inventory + engine routes (JSON). Drives **Phase 1** when xray is not used.
 - `auditooor-scan seams <dir>` → ranks every contract **CORE vs SEAM** (audited-core fortress vs un-audited periphery/glue: routers, wrappers, migration helpers). The audited core is picked clean; **value still sits in the seams** — point the hunt there. Feeds **Phase 0/2**. See `references/impact-model.md` (fortress detection) and `references/hunting-doctrine.md`.
 - `auditooor-scan detect <dir>` also prints a **maturity `tactic`** (sloppy→low-hanging fruit; mature/complex→deepest paths) per `references/hunting-doctrine.md`. Adopt it as the run's posture.
@@ -119,7 +120,10 @@ Rank survivors by **expected dollars**, not severity label: `P(accept) × payout
 - **`/auditooor SCOPE <url|dir>`** — Phase 0 only: resolve program, scope, and EV verdict. Cheap. Run it before committing tokens.
 - **`/auditooor XRAY [path]`** — recon only. `{scan} pack --out <path>/auditooor-recon`, print `hunt.md`, stop. No fleet, no PoC. Read `references/xray.md`.
 - **`/auditooor FUZZ [path]`** — invariant campaign: pack + system harness + five discovery agents on `PROPERTIES.md` + Foundry (clamped + unclamped handlers, 3 actors) + fork-PoC for survivors. Read `references/invariant-discovery.md`. Do not spawn the 12 hacking agents in this mode.
-- **`/auditooor DEEP`** — pass `DEEP` through to every routed engine (full 12-agent fleet).
+- **`/auditooor DEEP`** — full 12 + spec-divergence + lifecycle + isolated money-map (15). Also pass `DEEP` to routed engines.
+- **`/auditooor QUICK`** — 7 hunters (`hunting-fleet.md`). Rapid triage, still proof-gated.
+- **`--poc`** — on by default for bounty/DEEP. Forge fork PoCs for every skeptic-CONFIRMED survivor. `--no-poc` leaves them as LEADs.
+- **`--file-output`** — also write the report under `<target>/auditooor-recon/report.md`. Off by default.
 - **`/auditooor CROSSCHAIN`** — force the cross-chain lens (`references/cross-chain.md`) even if only one ecosystem is present locally; use when the target bridges or passes messages.
 - **`/auditooor DIFF [base_ref]`** — pass `DIFF` through to every routed engine; freshest code first.
 
@@ -173,7 +177,8 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 - `references/hunting-fleet.md` — **spawn the specialized hunting fleet, never 1–2 generics**: roster, parallel spawn, merge gates.
 - `references/coverage-wave.md` — second wave on entry points no hunter actually opened.
 - `references/skeptic-agent.md` / `prover-agent.md` / `recon-agent.md` — verify and prove; hunters are not verifiers.
-- `references/hunters/` — 12 Pashov personas (MIT) + spec-divergence + lifecycle. Default `--agents` path.
+- `references/hunters/` — 12 Pashov personas (MIT) + spec-divergence + lifecycle + CritFinds **money-map**. Default `--agents` path.
+- `references/exploit-patterns.md` — what actually paid 2025–2026 (rounding amplified, donation, init AC). Hunt these before any taxonomy. From CritFindsAudit.
 - `references/xray.md` — bounty-first recon: `{scan} pack` → hunt brief → next command. Standalone `/auditooor XRAY`.
 - `references/protocol-threats.md` — paying assumption-breaks by `census.protocol_types` (vault/lending/amm/staking/escrow). Load matching rows only.
 - `references/invariant-discovery.md` — five-agent property fleet + synthesizer + Foundry run + fork-PoC. Standalone `/auditooor FUZZ`. Canonical properties live in `invariant-library.md`; this file authors the protocol-specific ones.

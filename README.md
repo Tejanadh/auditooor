@@ -3,7 +3,7 @@
 <p align="center"><i>Optimises dollars-per-run, not findings-per-run.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v0.5.0-skill-627EEA" />
+  <img src="https://img.shields.io/badge/v0.6.0-skill-627EEA" />
   <img src="https://img.shields.io/badge/Chains-EVM%20%C2%B7%20Solana%20%C2%B7%20ZK%20%C2%B7%20Move%20%C2%B7%20Vyper-9945FF" />
   <img src="https://img.shields.io/badge/Bias-Proof%20over%20severity-2ea44f" />
 </p>
@@ -26,8 +26,9 @@ Then:
 ```
 /auditooor SCOPE <program-url>
 /auditooor XRAY .
+/auditooor QUICK .
 /auditooor FUZZ .
-/auditooor DEEP .
+/auditooor DEEP --file-output
 ```
 
 **Need:** Rust (for `auditooor-scan`), Foundry (for harness + fork PoC), Python 3 (coverage/parse, stdlib only).

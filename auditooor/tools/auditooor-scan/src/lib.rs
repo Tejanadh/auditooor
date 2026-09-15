@@ -24,6 +24,7 @@ pub mod census;
 pub mod props;
 pub mod pack;
 pub mod deltas;
+pub mod danger;
 
 #[cfg(feature = "solar")]
 pub mod ast;
