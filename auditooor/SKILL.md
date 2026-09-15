@@ -1,14 +1,16 @@
 ---
 name: auditooor
-description: Reward-first meta-orchestrator layered on top of the crit* proof-gated audit engines. It finds nothing itself — it routes a target to the right prover (critfindsaudit/EVM, critsolaudit/Solana, critzkaudit/ZK, plus native Move, Vyper and cross-chain adapters), then enforces three gates that separate a payout from noise: an IMPACT gate that kills code-smells with no fund-loss path, a NOVELTY gate that kills already-public and already-ledgered bugs before any PoC is forged, and one unified PROOF STANDARD every engine's PoC must clear. Trigger with "/auditooor", "/auditooor <path>", "/auditooor SCOPE", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor CROSSCHAIN", or "/auditooor DEEP". Optimises dollars-per-run, not findings-per-run.
+description: Reward-first EVM-native bounty hunter. Packs recon, hunts with money-map/lifecycle/spec-divergence plus an optional Pashov MIT fleet, skeptics claims, then demands a fork PoC. critfindsaudit/critsolaudit/critzkaudit are OPTIONAL upgrades — this skill hunts EVM alone. Trigger with "/auditooor", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor QUICK", "/auditooor DEEP", "/auditooor SCOPE". Optimises dollars-per-run, not findings-per-run.
 user-invocable: true
 argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | DEEP | QUICK | DIFF [base] | CROSSCHAIN] [--poc] [--file-output]"
 when-to-use: "Use when the user runs /auditooor, asks to hunt a bounty/contest target, wants a payout-gated audit across EVM/Solana/ZK/Move/Vyper, or asks for x-ray recon / invariant fuzz on a protocol."
 ---
 
-# Auditooor v0.6 — The Reward-First God-Layer
+# Auditooor v0.7 — The Reward-First Hunter OS
 
-You are the meta-orchestrator. You do **not** hunt bugs. Four proven engines already hunt: `critfindsaudit` (EVM/Solidity), `critsolaudit` (Solana/Anchor), `critzkaudit` (ZK circuits), and two adapters this skill adds — Move and Vyper — plus a cross-chain lens. Your job is to make a run **pay**: pick the target, pick the prover, and stand three gates in front of every candidate so that only a *real, impactful, novel, proven* bug survives to a report.
+You hunt **EVM bounties with this directory alone.** `{scan}` + `{hunters}` + skeptics + fork PoC is the full path. `critfindsaudit` / `critsolaudit` / `critzkaudit` are **optional depth packs**. If they are missing, print `engines: none (native EVM path)` and continue. **Never stop a hunt because an engine is not installed.**
+
+Headline hunters (ours): `money-map-agent`, `lifecycle-agent`, `spec-divergence-agent`. The twelve Pashov MIT personas are the supporting fleet (`NOTICE.md`). Your job is still to make a run **pay**: only a *real, impactful, novel, proven* bug survives to a report.
 
 **The one law.** Bounty hunting is getting **paid** for bugs, not finding them. Every decision below is subordinate to dollars-per-run. A run that finds ten true-but-unpayable code flaws lost to a run that found nothing and spent no tokens. (See `references/impact-model.md`.)
 
@@ -24,21 +26,27 @@ for d in "$HOME/.grok/commands/auditooor" "$HOME/.grok/skills/auditooor" "$HOME/
 done
 ```
 
-That directory is `{skill}`. `{scan}` is `{skill}/tools/auditooor-scan/target/release/auditooor-scan`. If the binary is missing, `cd {skill}/tools/auditooor-scan && cargo build --release`. `{py}` is `python3 {skill}/scripts/auditooor.py` when that file exists. `{hunters}` is `{skill}/references/hunters`. Substitute the **literal paths** into later commands — a fresh shell will not remember variables.
+That directory is `{skill}`. `{scan}` is `{skill}/tools/auditooor-scan/target/release/auditooor-scan`. **If the binary is missing, run `{skill}/install.sh` (or `bash {skill}/tools/auditooor-scan/build.sh`) in this turn and fail the run only if that fails.** `{py}` is `python3 {skill}/scripts/auditooor.py` when that file exists. `{hunters}` is `{skill}/references/hunters`. Substitute the **literal paths** into later commands — a fresh shell will not remember variables.
+
+**This skill is self-contained for EVM.** Do not require `critfindsaudit`. Optional engines (print present/missing, never abort):
+
+| Optional engine | Path | If missing |
+|---|---|---|
+| EVM depth | `~/.grok/commands/critfindsaudit` | native fleet from `{hunters}` |
+| Solana | `~/.grok/commands/critsolaudit` | `detect` still labels `solana`; say "adapter only — no Solana prover installed" |
+| ZK | `~/.grok/commands/critzkaudit` | same |
 
 **Version check (once, non-blocking):** read `{skill}/VERSION`. `curl -sf https://raw.githubusercontent.com/Tejanadh/auditooor/main/auditooor/VERSION`. If they differ, print `⚠️ local VERSION != GitHub; upgrade from https://github.com/Tejanadh/auditooor`. If curl fails, skip.
 
 Ledger/outcomes default in the binary is `$HOME/.claude/auditooor/` (shared with Claude). That is intentional: one hunter, one ledger. Override with `--ledger` only if you need a split.
 
-Engine SKILL.md lookup (first hit wins):
+Optional engine lookup (first hit wins) — **upgrade, not a dependency**:
 
 | Engine | Paths |
 |---|---|
-| EVM | `~/.grok/commands/critfindsaudit/SKILL.md`, `~/.claude/commands/critfindsaudit/SKILL.md` |
+| EVM depth | `~/.grok/commands/critfindsaudit/SKILL.md`, `~/.claude/commands/critfindsaudit/SKILL.md` |
 | Solana | `~/.grok/commands/critsolaudit/SKILL.md`, `~/.claude/commands/critsolaudit/SKILL.md` |
 | ZK | `~/.grok/commands/critzkaudit/SKILL.md`, `~/.claude/commands/critzkaudit/SKILL.md` |
-
-If an engine is missing, say so and run the matching adapter (`move-adapter.md` / `vyper-adapter.md`) or stop — do not silently invent a hunt.
 
 ## The fast layer (`auditooor-scan`)
 
@@ -109,7 +117,7 @@ After wave 1 returns: completeness gate → **coverage wave** (`coverage-wave.md
 For every surviving candidate, run the **two-layer** novelty check *before* the engine forges its proof — forging a PoC for a known bug is pure token waste. (1) **Local self-dedup:** `auditooor-scan fingerprint` against the ledger; `DUPLICATE` → kill. (2) **World-novelty (the pillar that actually rejects submissions):** `auditooor-scan novelty --protocol P --mechanism M --sink S [--fork-family F]` generates a targeted prior-art query set — **run every query via WebSearch** and complete the manual checks (program known-issues, prior audits, changelog, fork-inheritance). A hit anywhere → `DEAD-DUP`. Only an all-clear is world-novel. On a proven, submitted finding, `fingerprint --add` to record it. Read `references/novelty-gate.md`.
 
 ### Phase 4 — Unified proof standard
-Let each engine forge its proof (Foundry / LiteSVM / forged-verifier / Move unit / Vyper-Foundry). For EVM targets, bootstrap with `{scan} harness --system <src> --out <test>` **and** the five-agent property fleet in `references/invariant-discovery.md` — canonical solvency/conservation come from the generator; protocol-specific properties come from the fleet. Foundry's shrinker turns any break into the minimal exploit sequence (that sequence *is* the PoC seed). Convert a surviving break into a fork PoC (`harness --fork`). Then hold every proof to the **same** bar regardless of chain: it must execute, it must move or lock real value (or verify a forged statement), and it must be minimal. Read `references/proof-standard.md`. A "reasoning-only" LEAD is never a finding.
+**EVM default:** `{scan} harness` + Foundry. We do **not** generate Medusa/Echidna suites (Pashov fizz owns that axis). Foundry shrink is the PoC seed; `harness --fork` is the Immunefi shape. Optional engines may add LiteSVM / forged-verifier. Same bar: executes, moves or locks value, minimal. `references/proof-standard.md`. No PoC → LEAD.
 
 ### Phase 5 — Payout assembly
 Rank survivors by **expected dollars**, not severity label: `P(accept) × payout_tier × novelty_confidence`. Emit the submission pack in the program's format. **Draft and later triager replies use `/negotiate-bounty`** (`~/.grok/skills/negotiate-bounty/SKILL.md`) — precise impact, no oversell, no disclosure threats. Then **record every outcome**: `auditooor-scan outcome --protocol P --mechanism M --sink S --lane machine|human --status accepted|rejected|duplicate|no_response [--payout N]`. Read the calibration with `auditooor-scan outcome --stats`. This ledger — not any benchmark — is the **only** instrument that measures in-the-wild precision (dead leads per real bug) and calibrates `human_EV`'s P(model an un-modeled assumption). Every labeled benchmark measures recall; only this measures lead-to-payout, and it only fills by hunting.
@@ -135,9 +143,15 @@ Rank survivors by **expected dollars**, not severity label: `P(accept) × payout
 4. **Intended ≠ wrong.** The model is strong at *unusual*, weak at *intended*. Every engine's intent ledger and human checkpoint still apply; Auditooor adds no override.
 5. **EV can abort.** A run with no reachable value or no live program is aborted in Phase 0, before code is read.
 
-## Invoking the underlying engines
+## Native hunt vs optional engines
 
-Auditooor does **not** re-implement the hunt. Route table lives in `{skill}/references/ecosystem-router.md`.
+**Default (always):** spawn `{hunters}` per `hunting-fleet.md` (headline 3 + Pashov 12 on DEEP). Forge proof with `{scan} harness` + Foundry. This is the Bybit-ready path.
+
+**If** `critfindsaudit` exists **and** the user asked DEEP: also route EVM depth through that engine (230 vectors, money-map isolation already in-skill). Merge survivors through Phase 3–5.
+
+**If** Solana/ZK engines exist, route those ecosystems. If not, `detect` still labels files; do not invent a LiteSVM hunt.
+
+Route table: `{skill}/references/ecosystem-router.md`.
 
 **Grok (this host):** there is no Skill tool. Dispatch with `spawn_subagent`:
 
@@ -177,7 +191,7 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 - `references/hunting-fleet.md` — **spawn the specialized hunting fleet, never 1–2 generics**: roster, parallel spawn, merge gates.
 - `references/coverage-wave.md` — second wave on entry points no hunter actually opened.
 - `references/skeptic-agent.md` / `prover-agent.md` / `recon-agent.md` — verify and prove; hunters are not verifiers.
-- `references/hunters/` — 12 Pashov personas (MIT) + spec-divergence + lifecycle + CritFinds **money-map**. Default `--agents` path.
+- `references/hunters/` — **headline (ours):** money-map, lifecycle, spec-divergence. **Supporting (Pashov MIT):** the twelve personas. Default `--agents` path.
 - `references/exploit-patterns.md` — what actually paid 2025–2026 (rounding amplified, donation, init AC). Hunt these before any taxonomy. From CritFindsAudit.
 - `references/xray.md` — bounty-first recon: `{scan} pack` → hunt brief → next command. Standalone `/auditooor XRAY`.
 - `references/protocol-threats.md` — paying assumption-breaks by `census.protocol_types` (vault/lending/amm/staking/escrow). Load matching rows only.

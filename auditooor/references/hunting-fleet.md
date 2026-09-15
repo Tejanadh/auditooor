@@ -1,14 +1,24 @@
-# Hunting Fleet — spawn the whole pashov-style agent fleet, never 1–2 generics
+# Hunting Fleet — headline ours, supporting Pashov, never 1–2 generics
 
-When auditooor hunts, it does **not** spawn one or two generic agents. It spawns the **full specialized fleet** — one agent per hacking role — in parallel, each with a single obsession, then collects, dedups, gates, and PoCs their candidates. This is the back-half of the pipeline: `xray` (seams/surface/entries/git) nominates the surface; the fleet hunts it.
+When auditooor hunts, it does **not** spawn one or two generic agents. It spawns specialists in parallel from **`{skill}/references/hunters/`** (this skill; no engine required). `xray` nominates the surface; the fleet hunts it.
 
-**Hard rule:** a real hunt (`/auditooor`, `/auditooor DEEP`, a live program) spawns the fleet. Spawning a single generic "look for bugs" agent is a bug in the operator, not a shortcut. On Charm this was violated (only 2 generic agents) — never again.
+**Hard rule:** a real hunt (`/auditooor`, `/auditooor DEEP`, a live program) spawns the fleet. Charm spawned 2 generics — never again.
 
-**Mode split:** `/auditooor XRAY` spawns **zero** hunting agents (recon only). `/auditooor FUZZ` spawns the **five invariant-discovery agents** in `invariant-discovery.md`, not this 12. Do not mix the two fleets in one turn unless the user asked for a full pipeline.
+**Mode split:** `/auditooor XRAY` = zero hunters. `/auditooor FUZZ` = invariant-discovery agents, not this fleet.
 
-## The fleet (12 roles, from `{engine}/references/hacking-agents/`)
+## Headline (ours — spawn these first, always)
 
-`{engine}` = the routed engine dir (`~/.grok/commands/critfindsaudit` then `~/.claude/commands/critfindsaudit`, per `ecosystem-router.md`). Each file is a complete hunting persona — spawn one agent per role, loading that file as the agent's mandate.
+| Agent | Obsession |
+|---|---|
+| `money-map-agent` | isolated accounting-first books; no other agent's map (CritFinds Agent 8, in-skill) |
+| `lifecycle-agent` | init → operate → pause → upgrade → sunset; guards that die on a transition |
+| `spec-divergence-agent` | NatSpec/spec/comment claim vs what the code does |
+
+**QUICK** = these three + `access-control`, `economic-security`, `invariant`, `periphery`.
+
+## Supporting (Pashov MIT — DEEP / Default)
+
+Each file is a hunting persona. Attributed in `NOTICE.md`. Not the product; the gates around them are.
 
 | Agent | Obsession |
 |---|---|
@@ -24,20 +34,17 @@ When auditooor hunts, it does **not** spawn one or two generic agents. It spawns
 | `numerical-gap-agent` | overflow/underflow/unchecked, downcast, wraparound |
 | `periphery-agent` | routers/wrappers/adapters/migration glue — the un-audited seam |
 | `trust-gap-agent` | trusted-input assumptions: oracle, token, callback, external return values |
-| `spec-divergence-agent` | docs/NatSpec/spec claim vs what the code actually does |
-| `lifecycle-agent` | init → operate → pause → upgrade → sunset; guards that die on a transition |
-| `money-map-agent` | **isolated** accounting-first (CritFinds Agent 8). No vector list, no other agent's map. Builds its own books. |
 
-Default spawn is the original 12. **DEEP** adds spec-divergence, lifecycle, money-map (15). `--quick` / QUICK: `access-control`, `economic-security`, `invariant`, `math-precision`, `flow-gap`, `periphery`, `money-map`.
+**Default** = headline 3 + supporting 12 (15). **DEEP** = same 15, plus optional `critfindsaudit` if installed. **QUICK** = headline 3 + AC/economic/invariant/periphery.
 
 **Money-map isolation (HARD):** do **not** inject the xray impact map or other agents' FINDINGs into the money-map prompt. Source bundle + `exploit-patterns.md` rounding/AC recipes only. Agreement with the 12 is only a signal if this agent started from the code.
 
-(Also read `{engine}/references/hacking-agents/shared-rules.md`, `senior-auditor-sop.md`, and `bounty-rules.md` — every agent inherits these.)
+Every agent inherits `{skill}/references/shared-rules.md`, `senior-auditor-sop.md`, and `{skill}/references/hunters/bounty-rules.md`.
 
 ## Fleet selection
 
-- **Default / DEEP:** spawn **all 12**. More coverage on a real target is the point of the fleet.
-- **Token-constrained / QUICK:** spawn the subset the money-map + `surface`/`detectors` nominate — always include `economic-security`, `invariant`, `math-precision`, `access-control`, plus `periphery` whenever `seams` returned any SEAM.
+- **Default / DEEP:** spawn **headline 3 + supporting 12**.
+- **QUICK:** headline 3 + `access-control`, `economic-security`, `invariant`, `periphery`.
 - **Fortress warning:** if EV Phase 0 flagged a fortress (many audits + FV, no un-audited seam), spawning the full fleet still finds $0 — the swarm data is unambiguous. Do not spawn a fleet at a fortress to feel productive; re-target instead (`impact-model.md`). More agents never beats a better target.
 
 ## Spawn protocol (this is the part that has to beat a generic agent)

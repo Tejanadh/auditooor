@@ -1,0 +1,72 @@
+{
+  "root": "/home/tejanadh/.grok/commands/auditooor/demo",
+  "detect": {
+    "ecosystems": {"evm": 1},
+    "file_count": 1,
+    "total_complexity": 2,
+    "avg_complexity": 2,
+    "tactic": "SLOPPY/SIMPLE — hunt low-hanging fruit: unguarded entrypoints, missing checks, obvious access-control gaps"
+  },
+  "posture": {
+    "verdict": "HUNT",
+    "why": "sloppy code + unguarded value — low-hanging AC/flow bugs first, then invariants",
+    "permissionless_value_sites": 7,
+    "permissionless_entries": 3,
+    "seam_contracts": 0,
+    "detector_hits": 0,
+    "detector_critical": 0
+  },
+  "surface": [
+    {"path": "OpenVault.sol", "ecosystem": "evm", "risk_score": 112, "git_boost": 0, "permissionless_value_sites": 7, "entrypoints": 3, "detector_hits": 0}
+  ],
+  "seams": [
+    {"contract": "OpenVault", "classification": "CORE", "periphery_score": -5}
+  ],
+  "entries": [
+    {"file": "OpenVault.sol", "contract": "OpenVault", "name": "deposit", "line": 9, "access": "permissionless", "value_flow": "in", "payable": true, "modifiers": []},
+    {"file": "OpenVault.sol", "contract": "OpenVault", "name": "withdraw", "line": 13, "access": "permissionless", "value_flow": "out", "payable": false, "modifiers": []},
+    {"file": "OpenVault.sol", "contract": "OpenVault", "name": "drainTo", "line": 20, "access": "permissionless", "value_flow": "out", "payable": false, "modifiers": []}
+  ],
+  "entry_count": 3,
+  "census": {
+    "toolchain": "foundry",
+    "nsloc": 17,
+    "test_files": 1,
+    "test_functions": 1,
+    "foundry_invariant": 0,
+    "stateless_fuzz": 0,
+    "echidna": 0,
+    "medusa": 0,
+    "fork_tests": 0,
+    "certora": 0,
+    "slither_config": false,
+    "protocol_types": ["vault"]
+  },
+  "properties": [
+    {"id": "P-01", "kind": "pair", "guarantee": "EXPLORATORY", "statement": "round-trip: withdraw after deposit returns ≤ in, absent documented fees", "evidence": "deposit↔withdraw both present; permissionless=true"},
+    {"id": "P-02", "kind": "aggregate", "guarantee": "EXPLORATORY", "statement": "shares == Σ parts across every write site (flag any function that writes one side only)", "evidence": "identifier `shares` in source"},
+    {"id": "P-03", "kind": "delta-gap", "guarantee": "EXPLORATORY", "statement": "deposit writes only [shares] / [] — check the sibling path credits the other side", "evidence": "one-sided Δ in deposit"},
+    {"id": "P-04", "kind": "delta-gap", "guarantee": "EXPLORATORY", "statement": "withdraw writes only [] / [shares] — check the sibling path credits the other side", "evidence": "one-sided Δ in withdraw"},
+    {"id": "P-05", "kind": "conservation", "guarantee": "SHOULD-HOLD", "statement": "absent documented yield, aggregate value out ≤ aggregate value in at the system boundary", "evidence": "permissionless value-flow entry exists"},
+    {"id": "P-06", "kind": "authority", "guarantee": "SHOULD-HOLD", "statement": "no unprivileged sequence grants a role/allowance the actor was not given", "evidence": "permissionless entries present"}
+  ],
+  "deltas": {
+    "writes": [{"fn": "deposit", "var": "shares", "dir": 1, "line": 10}, {"fn": "withdraw", "var": "shares", "dir": -1, "line": 14}],
+    "gaps": [{"fn": "deposit", "plus": ["shares"], "minus": [], "one_sided": true}, {"fn": "withdraw", "plus": [], "minus": ["shares"], "one_sided": true}]
+  },
+  "danger": {
+    "hit_count": 2,
+    "hot_files": [{"path": "OpenVault.sol", "hits": 2}],
+    "hits": [{"file": "OpenVault.sol", "line": 15, "keyword": "call{value"}, {"file": "OpenVault.sol", "line": 22, "keyword": "call{value"}]
+  },
+  "git": {
+    "available": false,
+    "branch": "",
+    "commit": "",
+    "commits_analyzed": 0,
+    "squashed_import": false,
+    "hotspots": [],
+    "fix_commits": [],
+    "late_files": []
+  }
+}

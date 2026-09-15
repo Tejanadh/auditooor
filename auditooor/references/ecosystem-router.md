@@ -1,6 +1,6 @@
 # Ecosystem Router — detection → engine dispatch
 
-Auditooor never re-implements a hunt. It detects the ecosystem(s) present and drives the right engine. On Grok that is `spawn_subagent` after reading the engine `SKILL.md`. On Claude it is the Skill tool if present, otherwise the same spawn path. Multi-ecosystem targets fan out to several engines plus the cross-chain lens.
+EVM hunting is **native to this skill** (`{hunters}` + `{scan}` + Foundry). Optional `crit*` engines add depth; they are not required. Detect ecosystems, then dispatch. Missing engine → print it, keep the native path, do **not** abort.
 
 ## Detection
 
@@ -19,24 +19,19 @@ Ambiguous or mixed repo → route to **every** ecosystem detected. Do not force 
 
 ## Dispatch — spawn the FLEET, not one agent
 
-**The dispatch spawns the full specialized hunting fleet** (`references/hunting-fleet.md`) — one agent per hacking role from `{engine}/references/hacking-agents/` (access-control, asymmetry, boundary, economic-security, execution-trace, first-principles, flow-gap, invariant, math-precision, numerical-gap, periphery, trust-gap), in parallel. Spawning a single generic "find bugs" agent is an operator bug — never do it for a real hunt. Collect → dedup by (function, mechanism) → novelty-gate → PoC.
+**Dispatch always starts from `{skill}/references/hunters/`** (`hunting-fleet.md`). Headline: money-map, lifecycle, spec-divergence. Supporting: Pashov twelve. Spawning a single generic "find bugs" agent is an operator bug.
 
-Pass the target path and the propagated mode (`DEEP`/`DIFF` if the Auditooor mode set them).
-
-Engine files (first existing path):
+Optional engine dirs (upgrade only):
 
 | Ecosystem | Engine dir |
 |---|---|
-| EVM | `~/.grok/commands/critfindsaudit` then `~/.claude/commands/critfindsaudit` |
+| EVM depth | `~/.grok/commands/critfindsaudit` then `~/.claude/commands/critfindsaudit` |
 | Solana | `~/.grok/commands/critsolaudit` then `~/.claude/commands/critsolaudit` |
 | ZK | `~/.grok/commands/critzkaudit` then `~/.claude/commands/critzkaudit` |
 
-- EVM → read that `SKILL.md`, spawn the **full fleet** (12 agents from `critfindsaudit/references/hacking-agents/`) with path + `DEEP`/`DIFF [base_ref]` as set. Default/DEEP = all 12; QUICK = the money-map subset (always economic-security + invariant + math-precision + access-control, plus periphery if `seams` found a SEAM).
-- Solana → same fleet pattern for `critsolaudit`.
-- ZK → same for `critzkaudit`.
-- Dual EVM+Solana quick pass → `critaudit` exists but prefer the specialised engines; use `critaudit` only when the user asks for the older unified flow.
-- Move → no engine yet: load `references/move-adapter.md` and run its vector list inline, then forge proof with Move unit tests.
-- Vyper → no engine yet: load `references/vyper-adapter.md`, run its vectors inline, forge proof by compiling the `.vy` and driving it from a Foundry test (vyper deploys as EVM bytecode).
+- EVM → native fleet. If critfindsaudit exists **and** DEEP, also spawn that engine and merge.
+- Solana / ZK → only if the engine dir exists; otherwise label via `detect` and stop that leg.
+- Move / Vyper → adapters only (`move-adapter.md` / `vyper-adapter.md`). Not a full hunt.
 
 **Grok:** one `spawn_subagent` (`general-purpose`, foreground) **per fleet role**, all launched together. Prefix each description `[auditooor:<role>]`. Do not pass `capability_mode`. Each agent's prompt = the role file's text + target paths + the Auditooor impact map, EV verdict, and novelty context + the gate rules.
 

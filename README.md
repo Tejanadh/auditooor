@@ -1,90 +1,74 @@
 <h1 align="center">auditooor</h1>
-<p align="center"><b>A reward-first audit skill.</b></p>
+<p align="center"><b>A reward-first EVM bounty hunter.</b></p>
 <p align="center"><i>Optimises dollars-per-run, not findings-per-run.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v0.6.0-skill-627EEA" />
-  <img src="https://img.shields.io/badge/Chains-EVM%20%C2%B7%20Solana%20%C2%B7%20ZK%20%C2%B7%20Move%20%C2%B7%20Vyper-9945FF" />
-  <img src="https://img.shields.io/badge/Bias-Proof%20over%20severity-2ea44f" />
+  <img src="https://img.shields.io/badge/v0.7.0-skill-627EEA" />
+  <img src="https://img.shields.io/badge/EVM_native-optional_engines-9945FF" />
+  <img src="https://img.shields.io/badge/Proof-Foundry-2ea44f" />
 </p>
 
-Install the skill. Point it at a repo. It packs recon, hunts with a specialized fleet, measures unread entry points, skeptics the claims, then demands a **fork PoC** — or it aborts because the target will not pay.
-
-```
-npx skills add https://github.com/Tejanadh/auditooor --skill auditooor
-```
+**EVM hunts with this repo alone.** `critfindsaudit` / `critsolaudit` / `critzkaudit` are optional depth packs. Missing them is not a silent fail.
 
 ```
 git clone https://github.com/Tejanadh/auditooor.git
+bash auditooor/auditooor/install.sh
 ln -s "$(pwd)/auditooor/auditooor" ~/.grok/skills/auditooor
-ln -s "$(pwd)/auditooor/auditooor" ~/.claude/skills/auditooor   # optional
-cd auditooor/auditooor/tools/auditooor-scan && cargo build --release
 ```
 
-Then:
+`install.sh` builds `{scan}` or **exits 1**. Then:
 
 ```
-/auditooor SCOPE <program-url>
 /auditooor XRAY .
 /auditooor QUICK .
-/auditooor FUZZ .
 /auditooor DEEP --file-output
 ```
 
-**Need:** Rust (for `auditooor-scan`), Foundry (for harness + fork PoC), Python 3 (coverage/parse, stdlib only).
+Need: Rust (`cargo`), Foundry (`forge`) for PoCs. Python 3 optional (coverage parse).
+
+**Recorded demo (not a bounty):** [auditooor/demo/DEMO.md](auditooor/demo/DEMO.md) — `pack` labelled `drainTo` permissionless out; Foundry `[PASS]` thief takes 10 ETH.
 
 ---
 
-## Why this is not Pashov/skills
+## Headline hunters (ours)
 
-[pashov/skills](https://github.com/pashov/skills) is a **contest auditor**: always run 12 agents, vendor-neutral report, Medusa/Echidna suite. It is excellent at that.
+`money-map` (isolated accounting) · `lifecycle` (init→upgrade→sunset) · `spec-divergence` (docs vs code).
 
-auditooor is a **bounty hunter OS**:
+The twelve Pashov personas are the **supporting** MIT fleet (`NOTICE.md`). Gates around them are the product.
 
-| | Pashov | auditooor |
-|---|---|---|
-| Abort a fortress | no | `EV: ABORT` / posture `FORTRESS` |
-| Novelty before PoC | no | ledger + world search |
-| Fork PoC (Immunefi shape) | unit/fuzz | `harness --fork` |
-| Unread-function wave | no | coverage wave 2 |
-| Independent skeptics | orchestrator judges | separate skeptic agents |
-| Multi-chain | Solidity | EVM / Solana / ZK / Move / Vyper |
-| Mechanical recon | LLM x-ray | compiled `auditooor-scan pack` |
+---
 
-The twelve hunter personas, SOP, and shared-rules are **Pashov’s MIT agents** (see `NOTICE.md`). We did not rewrite them. We put gates, a scanner, a second wave, and skeptics around them.
+## vs Pashov/skills
+
+They win **contest recall** and **Medusa/Echidna suite generation**. We do not compete on fizz. Foundry invariant + shrink + `harness --fork` is the campaign.
+
+We win **abort a fortress**, **novelty before PoC**, **skeptics**, **unread-function wave**, **EVM-native without their install**.
+
+---
+
+## Chains
+
+`auditooor-scan detect` **labels** EVM / Solana / Vyper / Move / ZK files (see fixtures dry-run in DEMO.md). **Hunting depth is EVM.** Solana/ZK need the optional engines; Move/Vyper are adapter notes, not a full hunt.
+
+---
+
+## Outcome ledger
+
+`$HOME/.claude/auditooor/outcomes.tsv` is empty until you record a real program. The OpenVault row is a **$0 fixture**. Do not call this a calibrated hunter yet.
 
 ---
 
 ## Artifact graph
 
 ```
-auditooor-scan pack → auditooor-recon/
-  xray.json hunt.md entries.md PROPERTIES.md source.md fleet/*-bundle.md
+install.sh → auditooor-scan pack → auditooor-recon/
+  hunt.md entries.md PROPERTIES.md xray.json fleet/
         ↓
-  fleet (14, parallel) → coverage wave → skeptics
+  headline 3 (+ supporting 12 on DEEP) → coverage wave → skeptics
         ↓
-  novelty gate → Foundry invariant / fork PoC → outcome ledger
+  novelty → Foundry / fork PoC → outcome
 ```
 
-`conversation memory` is not an artifact. If it is not a file in `auditooor-recon/`, the next stage cannot see it.
+Gates: **EV → impact → novelty → proof**.
 
----
-
-## The thesis
-
-Live bugs are usually simple. They hide in **complex paths with value at the end**. Rank by money-proximity × path-complexity. Skip clean fortresses. The 89% of 2025 losses were protocol-logic — invariants, not signature scanners.
-
-Gates a lead must clear: **EV → impact → novelty → proof**. Miss one, do not write it up.
-
----
-
-## Honest limits
-
-- The Rust scanner ranks attention. It does not find the 89%.
-- Twelve agents on a fortress still find nothing. Target selection is the product.
-- Novelty cannot see a private submission from three hours ago.
-- No published contest scoreboard yet. Do not cite this as “82% recall.”
-
-Independent work. Not affiliated with Pashov Audit Group. Responsible disclosure first.
-
-[GitHub](https://github.com/Tejanadh) · [X](https://x.com/TEJANadh10) · [email](mailto:tejanadh927@gmail.com)
+[GitHub](https://github.com/Tejanadh) · [X](https://x.com/TEJANadh10)
