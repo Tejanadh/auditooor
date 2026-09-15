@@ -1,0 +1,4 @@
+auditooor/tools/auditooor-scan/target/
+**/.auditooor-*
+*.swp
+.DS_Store

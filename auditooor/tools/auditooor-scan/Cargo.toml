@@ -1,0 +1,26 @@
+[package]
+name = "auditooor-scan"
+version = "0.5.0"
+edition = "2021"
+description = "Fast deterministic pre-filter for the auditooor audit stack: ecosystem detection, money-proximity impact map, and novelty-gate fingerprinting. Pure std, no network deps."
+
+[dependencies]
+# Optional: Paradigm's Rust Solidity frontend for real AST parsing.
+# Default build is pure-std and offline; `--features solar` adds AST accuracy.
+solar-parse = { version = "0.2", optional = true }
+
+[features]
+default = []
+solar = ["dep:solar-parse"]
+
+[[bin]]
+name = "auditooor-scan"
+path = "src/main.rs"
+
+[lib]
+name = "auditooor_scan"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
