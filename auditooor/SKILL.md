@@ -18,35 +18,43 @@ Headline hunters: `money-map-agent`, `lifecycle-agent`, `spec-divergence-agent`.
 
 ## Resolve install paths (do this first, once)
 
-Print the resolved `{skill}` and `{scan}` before any other work. Prefer Grok, then Claude, then the directory of this `SKILL.md`:
+Print the resolved `{skill}`, `{scan}`, and `{runtime}` before any other work. Works the same on **Claude Code, Cursor, and Grok**.
+
+`{skill}` = **the directory this `SKILL.md` was loaded from** (your runtime shows the path). Only if you cannot see it, take the first hit — the `money-map-agent.md` check skips older private installs that share the name:
 
 ```bash
-for d in "$HOME/.grok/commands/auditooor" "$HOME/.grok/skills/auditooor" "$HOME/.claude/commands/auditooor"; do
-  [ -f "$d/SKILL.md" ] && echo "$d" && break
+for d in "$PWD/.claude/skills/auditooor" "$PWD/.cursor/skills/auditooor" \
+         "$HOME/.claude/skills/auditooor" "$HOME/.cursor/skills/auditooor" \
+         "$HOME/.grok/skills/auditooor" "$HOME/.grok/commands/auditooor" "$HOME/.claude/commands/auditooor"; do
+  [ -f "$d/references/hunters/money-map-agent.md" ] && echo "$d" && break
 done
 ```
 
-That directory is `{skill}`. `{scan}` is `{skill}/tools/auditooor-scan/target/release/auditooor-scan`. **If the binary is missing, run `{skill}/install.sh` (or `bash {skill}/tools/auditooor-scan/build.sh`) in this turn and fail the run only if that fails.** `{py}` is `python3 {skill}/scripts/auditooor.py` when that file exists. `{hunters}` is `{skill}/references/hunters`. Substitute the **literal paths** into later commands — a fresh shell will not remember variables.
+`{runtime}` = `claude-code` if you have the `Agent` tool, `grok` if you have `spawn_subagent`, `cursor` if you are Cursor's agent, otherwise `other`. It only changes **how agents are spawned** (see *Runtime dispatch*); phases, gates, and outputs are identical everywhere.
+
+`{scan}` is `{skill}/tools/auditooor-scan/target/release/auditooor-scan`. **If the binary is missing, run `{skill}/install.sh` (or `bash {skill}/tools/auditooor-scan/build.sh`) in this turn and fail the run only if that fails.** `{py}` is `python3 {skill}/scripts/auditooor.py` when that file exists. `{hunters}` is `{skill}/references/hunters`. Substitute the **literal paths** into later commands — a fresh shell will not remember variables.
 
 **This skill is self-contained for EVM.** Do not require `critfindsaudit`. Optional engines (print present/missing, never abort):
 
 | Optional engine | Path | If missing |
 |---|---|---|
-| EVM depth | `~/.grok/commands/critfindsaudit` | native fleet from `{hunters}` |
-| Solana | `~/.grok/commands/critsolaudit` | `detect` still labels `solana`; say "adapter only — no Solana prover installed" |
-| ZK | `~/.grok/commands/critzkaudit` | same |
+| EVM depth | `critfindsaudit` | native fleet from `{hunters}` |
+| Solana | `critsolaudit` | `detect` still labels `solana`; say "adapter only — no Solana prover installed" |
+| ZK | `critzkaudit` | same |
 
 **Version check (once, non-blocking):** read `{skill}/VERSION`. `curl -sf https://raw.githubusercontent.com/Tejanadh/auditooor/main/auditooor/VERSION`. If they differ, print `⚠️ local VERSION != GitHub; upgrade from https://github.com/Tejanadh/auditooor`. If curl fails, skip.
 
-Ledger/outcomes default in the binary is `$HOME/.claude/auditooor/` (shared with Claude). That is intentional: one hunter, one ledger. Override with `--ledger` only if you need a split.
+Ledger/outcomes default in the binary is `$HOME/.claude/auditooor/` on **every** runtime (Grok and Cursor write there too). That is intentional: one hunter, one ledger. Override with `--ledger` only if you need a split.
 
 Optional engine lookup (first hit wins) — **upgrade, not a dependency**:
 
 | Engine | Paths |
 |---|---|
-| EVM depth | `~/.grok/commands/critfindsaudit/SKILL.md`, `~/.claude/commands/critfindsaudit/SKILL.md` |
-| Solana | `~/.grok/commands/critsolaudit/SKILL.md`, `~/.claude/commands/critsolaudit/SKILL.md` |
-| ZK | `~/.grok/commands/critzkaudit/SKILL.md`, `~/.claude/commands/critzkaudit/SKILL.md` |
+| EVM depth | `critfindsaudit/SKILL.md` |
+| Solana | `critsolaudit/SKILL.md` |
+| ZK | `critzkaudit/SKILL.md` |
+
+Search each under, in order: `./.claude/skills/`, `./.cursor/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, `~/.grok/skills/`, `~/.grok/commands/`, `~/.claude/commands/`.
 
 ## The fast layer (`auditooor-scan`)
 
@@ -120,7 +128,7 @@ For every surviving candidate, run the **two-layer** novelty check *before* the 
 **EVM default:** `{scan} harness` + Foundry. Shrink is the PoC seed; `harness --fork` is the Immunefi shape. Optional engines may add LiteSVM / forged-verifier. Same bar: executes, moves or locks value, minimal. `references/proof-standard.md`. No PoC → LEAD.
 
 ### Phase 5 — Payout assembly
-Rank survivors by **expected dollars**, not severity label: `P(accept) × payout_tier × novelty_confidence`. Emit the submission pack in the program's format. **Draft and later triager replies use `/negotiate-bounty`** (`~/.grok/skills/negotiate-bounty/SKILL.md`) — precise impact, no oversell, no disclosure threats. Then **record every outcome**: `auditooor-scan outcome --protocol P --mechanism M --sink S --lane machine|human --status accepted|rejected|duplicate|no_response [--payout N]`. Read the calibration with `auditooor-scan outcome --stats`. This ledger — not any benchmark — is the **only** instrument that measures in-the-wild precision (dead leads per real bug) and calibrates `human_EV`'s P(model an un-modeled assumption). Every labeled benchmark measures recall; only this measures lead-to-payout, and it only fills by hunting.
+Rank survivors by **expected dollars**, not severity label: `P(accept) × payout_tier × novelty_confidence`. Emit the submission pack in the program's format. **Draft and later triager replies use `/negotiate-bounty`** if installed (any runtime's skills dir) — precise impact, no oversell, no disclosure threats. Then **record every outcome**: `auditooor-scan outcome --protocol P --mechanism M --sink S --lane machine|human --status accepted|rejected|duplicate|no_response [--payout N]`. Read the calibration with `auditooor-scan outcome --stats`. This ledger — not any benchmark — is the **only** instrument that measures in-the-wild precision (dead leads per real bug) and calibrates `human_EV`'s P(model an un-modeled assumption). Every labeled benchmark measures recall; only this measures lead-to-payout, and it only fills by hunting.
 
 ## Modes
 
@@ -153,11 +161,22 @@ Rank survivors by **expected dollars**, not severity label: `P(accept) × payout
 
 Route table: `{skill}/references/ecosystem-router.md`.
 
-**Grok (this host):** there is no Skill tool. Dispatch with `spawn_subagent`:
+## Runtime dispatch
 
-1. `read_file` the engine `SKILL.md` in full (paths in the table above).
-2. Call `spawn_subagent` with `subagent_type: "general-purpose"`, **`background: true`**, `description: "[auditooor:<role>] <target-summary>"`. All selected roles in **one** message. Do **not** pass `capability_mode`. `background: false` serializes the fleet — that is an operator bug.
-3. Prompt = the engine skill body, then:
+Every fleet role, coverage-wave agent, skeptic, prover, and optional engine is **one agent per role, all launched together**. Only the tool differs:
+
+| `{runtime}` | Spawn | Parallel | Engine skill | Web search (novelty gate) |
+|---|---|---|---|---|
+| **claude-code** | `Agent` tool, `subagent_type: "general-purpose"`, `run_in_background: true`, all roles in **one** message; act on completion notifications, never poll | yes | read its `SKILL.md` and put it in the agent prompt (the `Skill` tool loads into *your* context — inline single pass only) | `WebSearch` / `WebFetch` |
+| **grok** | `spawn_subagent`, `subagent_type: "general-purpose"`, **`background: true`**, all roles in **one** message; no `capability_mode` | yes | `read_file` its `SKILL.md` into the prompt | `web_search` |
+| **cursor** | Cursor's subagent/task tool if this session exposes one — all roles in one message | if available | read its `SKILL.md` into the prompt | Cursor's web search tool (`@Web`) |
+| **other** / no subagent tool | run each role **sequentially inline**: load the role file, hunt, write `<role>.out.md`, clear your working notes, next role | no | inline | whatever search tool exists; otherwise mark novelty `UNCHECKED` |
+
+Sequential mode is slower, not weaker: same roles, same output files, same gates. Say `fleet: sequential ({runtime})` in the run header so the reader knows. Never collapse the fleet into one generic "find bugs" pass to save time.
+
+Description/label for every spawned agent: `[auditooor:<role>] <target-summary>`. Engines need write access for PoCs — never spawn them read-only.
+
+**Engine prompt** = the engine `SKILL.md` body, then:
 
 ```
 You are being driven by Auditooor. Obey the engine skill above.
@@ -178,9 +197,7 @@ Game: <bounty | contest>
 Follow the engine skill through proof. Return Verified Findings / Leads / Rejected Hypotheses only. Do not submit anything.
 ```
 
-4. Wait for the child. Merge its survivors through Phase 3–5. World-novelty search on Grok uses the `web_search` tool (not Claude `WebSearch`).
-
-**Claude:** if a Skill tool is available, invoke `critfindsaudit` / `critsolaudit` / `critzkaudit` with the same payload. Otherwise use the same `spawn_subagent` path.
+Wait for every child. Merge survivors through Phase 3–5.
 
 When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter reference inline and still route the *proof* step to the nearest executable harness (Move unit tests; Vyper compiled against a Foundry harness).
 
@@ -204,4 +221,4 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 - `references/invariant-library.md` — **the primary surface for protocol-logic bugs (~89% of losses)**: the canonical system-level invariants (conservation, solvency, round-trip, share-price, collateralization, authority monotonicity) fuzzed across the whole protocol at flash-loan scale. `surface`/`detectors` triage the machine-auditable classes; invariants hunt the logic bugs no per-file score can see. Proven: a generated invariant caught a rounding-direction logic bug with all access guards intact.
 - `references/move-adapter.md` — Move (Aptos/Sui) native vectors + proof harness.
 - `references/vyper-adapter.md` — Vyper native vectors + compiler-version traps + proof harness.
-- `~/.grok/skills/negotiate-bounty/SKILL.md` — Phase 5 report language and triager negotiation (separate skill; do not duplicate here).
+- `negotiate-bounty/SKILL.md` (separate, optional skill; same search order as engines) — Phase 5 report language and triager negotiation. If absent, write the report yourself: precise impact, no oversell, no disclosure threats.

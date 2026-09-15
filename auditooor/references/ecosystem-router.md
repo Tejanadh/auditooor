@@ -25,17 +25,17 @@ Optional engine dirs (upgrade only):
 
 | Ecosystem | Engine dir |
 |---|---|
-| EVM depth | `~/.grok/commands/critfindsaudit` then `~/.claude/commands/critfindsaudit` |
-| Solana | `~/.grok/commands/critsolaudit` then `~/.claude/commands/critsolaudit` |
-| ZK | `~/.grok/commands/critzkaudit` then `~/.claude/commands/critzkaudit` |
+| EVM depth | `critfindsaudit` |
+| Solana | `critsolaudit` |
+| ZK | `critzkaudit` |
 
 - EVM → native fleet. If critfindsaudit exists **and** DEEP, also spawn that engine and merge.
 - Solana / ZK → only if the engine dir exists; otherwise label via `detect` and stop that leg.
 - Move / Vyper → adapters only (`move-adapter.md` / `vyper-adapter.md`). Not a full hunt.
 
-**Grok:** one `spawn_subagent` (`general-purpose`, foreground) **per fleet role**, all launched together. Prefix each description `[auditooor:<role>]`. Do not pass `capability_mode`. Each agent's prompt = the role file's text + target paths + the Auditooor impact map, EV verdict, and novelty context + the gate rules.
+Engine dirs are searched in the order listed in `SKILL.md` (project `.claude/skills` / `.cursor/skills`, then `~/.claude/skills`, `~/.cursor/skills`, `~/.grok/skills`, `~/.grok/commands`, `~/.claude/commands`).
 
-**Claude:** one `Agent` call (`subagent_type: general-purpose`) **per fleet role**, all in one message so they run concurrently. Same prompt composition. (The Skill tool loads an engine into *your* context — use it only for a single-threaded inline pass; the fleet is spawned, not loaded.)
+**Spawning** (Claude Code `Agent`, Grok `spawn_subagent`, Cursor subagents, or sequential inline): one agent **per fleet role**, all launched together — see `SKILL.md` *Runtime dispatch*. Each agent's prompt = the role file's text + target paths + the Auditooor impact map, EV verdict, and novelty context + the gate rules.
 
 See `references/hunting-fleet.md` for the full roster, selection policy, spawn protocol, and the candidate-gating steps.
 

@@ -61,7 +61,7 @@ Every specialist gets **the whole source in one bundle** and the fleet runs **in
 
 That writes `source.md`, `hunt.md`, `entries.md`, `PROPERTIES.md`, `xray.json`, and `fleet/*-bundle.md`. Do not ask agents to glob the repo.
 
-2. **Spawn all selected roles in ONE message**, `background: true` (Grok `spawn_subagent` default). Description `[auditooor:<role>]`. Do **not** pass `capability_mode`. `background: false` serializes the fleet — forbidden on a real hunt.
+2. **Spawn all selected roles in ONE message, in the background** — Claude Code `Agent` with `run_in_background: true`; Grok `spawn_subagent` with `background: true` (no `capability_mode`); Cursor's subagent tool if exposed. Description `[auditooor:<role>]`. Foreground/serialized spawning is forbidden on a real hunt when the runtime can parallelize; with no subagent tool, run roles sequentially inline per `SKILL.md` *Runtime dispatch*.
 
    Prompt for each role (do not inline source into the prompt):
 

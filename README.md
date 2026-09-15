@@ -10,13 +10,25 @@
 
 **EVM hunts with this repo alone.** `critfindsaudit` / `critsolaudit` / `critzkaudit` are optional depth packs. Missing them is not a silent fail.
 
-```
+Works with **Claude Code** (CLI, VS Code, JetBrains), **Cursor**, and **Grok**.
+
+```bash
 git clone https://github.com/Tejanadh/auditooor.git
-bash auditooor/auditooor/install.sh
-ln -s "$(pwd)/auditooor/auditooor" ~/.grok/skills/auditooor
+bash auditooor/auditooor/install.sh            # installs into every runtime it finds, then builds {scan}
 ```
 
-`install.sh` builds `{scan}` or **exits 1**. Then:
+Or pick one:
+
+| Runtime | Command | Installs to |
+|---|---|---|
+| Claude Code | `bash auditooor/auditooor/install.sh --claude` | `~/.claude/skills/auditooor` |
+| Cursor | `bash auditooor/auditooor/install.sh --cursor` | `~/.cursor/skills/auditooor` |
+| Grok | `bash auditooor/auditooor/install.sh --grok` | `~/.grok/skills/auditooor` |
+| One repo only | `bash auditooor/auditooor/install.sh --project /path/to/repo` | `<repo>/.claude/skills` + `<repo>/.cursor/skills` |
+
+The default is a symlink, so `git pull` updates every install. Use `--copy` if your editor doesn't follow symlinks. An existing install that isn't this checkout is never touched unless you pass `--force`, and even then it's backed up first.
+
+Then, in the agent chat:
 
 ```
 /auditooor XRAY .
@@ -24,7 +36,11 @@ ln -s "$(pwd)/auditooor/auditooor" ~/.grok/skills/auditooor
 /auditooor DEEP --file-output
 ```
 
-Need: Rust (`cargo`), Foundry (`forge`) for PoCs. Python 3 optional (coverage parse).
+Or just ask: *"run auditooor on src/Vault.sol"*.
+
+**Update:** `cd auditooor && git pull` (symlink installs) or re-run `install.sh --copy`.
+
+Need: Rust (`cargo`) for `{scan}`, Foundry (`forge`) for PoCs. Python 3 optional (coverage parse). On Claude Code and Grok the fleet runs in parallel. On Cursor it runs in parallel when the session exposes subagents; otherwise it runs sequentially with the same roles and gates.
 
 **Recorded demo (not a bounty):** [auditooor/demo/DEMO.md](auditooor/demo/DEMO.md) — `pack` labelled `drainTo` permissionless out; Foundry `[PASS]` thief takes 10 ETH.
 
