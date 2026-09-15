@@ -19,7 +19,7 @@ Ambiguous or mixed repo → route to **every** ecosystem detected. Do not force 
 
 ## Dispatch — spawn the FLEET, not one agent
 
-**Dispatch always starts from `{skill}/references/hunters/`** (`hunting-fleet.md`). Headline: money-map, lifecycle, spec-divergence. Supporting: Pashov twelve. Spawning a single generic "find bugs" agent is an operator bug.
+**Dispatch always starts from `{skill}/references/hunters/`** (`hunting-fleet.md`). Headline: money-map, lifecycle, spec-divergence. Then the supporting twelve. Spawning a single generic "find bugs" agent is an operator bug.
 
 Optional engine dirs (upgrade only):
 

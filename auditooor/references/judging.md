@@ -2,7 +2,7 @@
 
 The orchestrator applies this after the hunt waves finish and again after verification. Deterministic where possible, recorded where it is a judgement.
 
-## 1. Dedup (from Pashov Audit Group's solidity-auditor, kept because it works)
+## 1. Dedup (group_key; see NOTICE.md)
 
 1. Run `auditooor.py parse {bundle_dir}` to get every block as JSON. Never dedup from memory of the transcripts.
 2. Group by `group_key` (Contract | function | bug-class). Exact match first, then merge synonymous bug_class within the same (Contract, function). Keep the best-evidenced item; annotate `[hunters: N]`.

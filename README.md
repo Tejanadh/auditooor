@@ -34,15 +34,7 @@ Need: Rust (`cargo`), Foundry (`forge`) for PoCs. Python 3 optional (coverage pa
 
 `money-map` (isolated accounting) · `lifecycle` (init→upgrade→sunset) · `spec-divergence` (docs vs code).
 
-The twelve Pashov personas are the **supporting** MIT fleet (`NOTICE.md`). Gates around them are the product.
-
----
-
-## vs Pashov/skills
-
-They win **contest recall** and **Medusa/Echidna suite generation**. We do not compete on fizz. Foundry invariant + shrink + `harness --fork` is the campaign.
-
-We win **abort a fortress**, **novelty before PoC**, **skeptics**, **unread-function wave**, **EVM-native without their install**.
+Supporting specialists on DEEP (MIT, see `NOTICE.md`). The product is the gates: abort a fortress, novelty before PoC, skeptics, unread-function wave, Foundry / fork proof.
 
 ---
 

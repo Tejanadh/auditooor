@@ -1,6 +1,6 @@
 # Coverage wave — unread entry points get a second hunt
 
-Pashov’s 12 agents often reread the same obvious functions. Wave 2 exists so **thin** permissionless money functions are not silently skipped.
+Wave 1 often rereads the same obvious functions. Wave 2 exists so **thin** permissionless money functions are not silently skipped.
 
 After wave 1, if `{py}` (`python3 {skill}/scripts/auditooor.py`) exists:
 

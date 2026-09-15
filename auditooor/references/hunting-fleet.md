@@ -1,4 +1,4 @@
-# Hunting Fleet — headline ours, supporting Pashov, never 1–2 generics
+# Hunting Fleet — headline three, supporting specialists, never 1–2 generics
 
 When auditooor hunts, it does **not** spawn one or two generic agents. It spawns specialists in parallel from **`{skill}/references/hunters/`** (this skill; no engine required). `xray` nominates the surface; the fleet hunts it.
 
@@ -16,9 +16,9 @@ When auditooor hunts, it does **not** spawn one or two generic agents. It spawns
 
 **QUICK** = these three + `access-control`, `economic-security`, `invariant`, `periphery`.
 
-## Supporting (Pashov MIT — DEEP / Default)
+## Supporting specialists (DEEP / Default)
 
-Each file is a hunting persona. Attributed in `NOTICE.md`. Not the product; the gates around them are.
+Each file is a hunting persona. Licence notes in `NOTICE.md`. The product is the gates around them.
 
 | Agent | Obsession |
 |---|---|
@@ -49,7 +49,7 @@ Every agent inherits `{skill}/references/shared-rules.md`, `senior-auditor-sop.m
 
 ## Spawn protocol (this is the part that has to beat a generic agent)
 
-Pashov's auditor works because every specialist gets **the whole source in one bundle** and all 12 run **in the same turn**. Serial one-agent-at-a-time is how Charm died. Do this:
+Every specialist gets **the whole source in one bundle** and the fleet runs **in the same turn**. Serial one-agent-at-a-time is how Charm died. Do this:
 
 1. **Pack once** (before any spawn):
 

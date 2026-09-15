@@ -1,6 +1,6 @@
 ---
 name: auditooor
-description: Reward-first EVM-native bounty hunter. Packs recon, hunts with money-map/lifecycle/spec-divergence plus an optional Pashov MIT fleet, skeptics claims, then demands a fork PoC. critfindsaudit/critsolaudit/critzkaudit are OPTIONAL upgrades — this skill hunts EVM alone. Trigger with "/auditooor", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor QUICK", "/auditooor DEEP", "/auditooor SCOPE". Optimises dollars-per-run, not findings-per-run.
+description: Reward-first EVM-native bounty hunter. Packs recon, hunts with money-map/lifecycle/spec-divergence plus a supporting specialist fleet, skeptics claims, then demands a fork PoC. critfindsaudit/critsolaudit/critzkaudit are OPTIONAL upgrades — this skill hunts EVM alone. Trigger with "/auditooor", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor QUICK", "/auditooor DEEP", "/auditooor SCOPE". Optimises dollars-per-run, not findings-per-run.
 user-invocable: true
 argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | DEEP | QUICK | DIFF [base] | CROSSCHAIN] [--poc] [--file-output]"
 when-to-use: "Use when the user runs /auditooor, asks to hunt a bounty/contest target, wants a payout-gated audit across EVM/Solana/ZK/Move/Vyper, or asks for x-ray recon / invariant fuzz on a protocol."
@@ -10,7 +10,7 @@ when-to-use: "Use when the user runs /auditooor, asks to hunt a bounty/contest t
 
 You hunt **EVM bounties with this directory alone.** `{scan}` + `{hunters}` + skeptics + fork PoC is the full path. `critfindsaudit` / `critsolaudit` / `critzkaudit` are **optional depth packs**. If they are missing, print `engines: none (native EVM path)` and continue. **Never stop a hunt because an engine is not installed.**
 
-Headline hunters (ours): `money-map-agent`, `lifecycle-agent`, `spec-divergence-agent`. The twelve Pashov MIT personas are the supporting fleet (`NOTICE.md`). Your job is still to make a run **pay**: only a *real, impactful, novel, proven* bug survives to a report.
+Headline hunters: `money-map-agent`, `lifecycle-agent`, `spec-divergence-agent`. Supporting specialists on DEEP (`NOTICE.md`). Your job is still to make a run **pay**: only a *real, impactful, novel, proven* bug survives to a report.
 
 **The one law.** Bounty hunting is getting **paid** for bugs, not finding them. Every decision below is subordinate to dollars-per-run. A run that finds ten true-but-unpayable code flaws lost to a run that found nothing and spent no tokens. (See `references/impact-model.md`.)
 
@@ -72,7 +72,7 @@ The binary is a *pre-filter and token-saver*, never a bug-finder — its score r
 
 ## Artifact graph (do not skip files)
 
-Ultrafuzz / fizz / x-ray all win by **handing files to the next stage**, not by chatting. This is the graph. Conversation memory is not an artifact.
+Win by **handing files to the next stage**, not by chatting. Conversation memory is not an artifact.
 
 ```
 pack/ → auditooor-recon/{xray.json, source.md, entries.md, PROPERTIES.md, hunt.md, fleet/}
@@ -117,7 +117,7 @@ After wave 1 returns: completeness gate → **coverage wave** (`coverage-wave.md
 For every surviving candidate, run the **two-layer** novelty check *before* the engine forges its proof — forging a PoC for a known bug is pure token waste. (1) **Local self-dedup:** `auditooor-scan fingerprint` against the ledger; `DUPLICATE` → kill. (2) **World-novelty (the pillar that actually rejects submissions):** `auditooor-scan novelty --protocol P --mechanism M --sink S [--fork-family F]` generates a targeted prior-art query set — **run every query via WebSearch** and complete the manual checks (program known-issues, prior audits, changelog, fork-inheritance). A hit anywhere → `DEAD-DUP`. Only an all-clear is world-novel. On a proven, submitted finding, `fingerprint --add` to record it. Read `references/novelty-gate.md`.
 
 ### Phase 4 — Unified proof standard
-**EVM default:** `{scan} harness` + Foundry. We do **not** generate Medusa/Echidna suites (Pashov fizz owns that axis). Foundry shrink is the PoC seed; `harness --fork` is the Immunefi shape. Optional engines may add LiteSVM / forged-verifier. Same bar: executes, moves or locks value, minimal. `references/proof-standard.md`. No PoC → LEAD.
+**EVM default:** `{scan} harness` + Foundry. Shrink is the PoC seed; `harness --fork` is the Immunefi shape. Optional engines may add LiteSVM / forged-verifier. Same bar: executes, moves or locks value, minimal. `references/proof-standard.md`. No PoC → LEAD.
 
 ### Phase 5 — Payout assembly
 Rank survivors by **expected dollars**, not severity label: `P(accept) × payout_tier × novelty_confidence`. Emit the submission pack in the program's format. **Draft and later triager replies use `/negotiate-bounty`** (`~/.grok/skills/negotiate-bounty/SKILL.md`) — precise impact, no oversell, no disclosure threats. Then **record every outcome**: `auditooor-scan outcome --protocol P --mechanism M --sink S --lane machine|human --status accepted|rejected|duplicate|no_response [--payout N]`. Read the calibration with `auditooor-scan outcome --stats`. This ledger — not any benchmark — is the **only** instrument that measures in-the-wild precision (dead leads per real bug) and calibrates `human_EV`'s P(model an un-modeled assumption). Every labeled benchmark measures recall; only this measures lead-to-payout, and it only fills by hunting.
@@ -145,7 +145,7 @@ Rank survivors by **expected dollars**, not severity label: `P(accept) × payout
 
 ## Native hunt vs optional engines
 
-**Default (always):** spawn `{hunters}` per `hunting-fleet.md` (headline 3 + Pashov 12 on DEEP). Forge proof with `{scan} harness` + Foundry. This is the Bybit-ready path.
+**Default (always):** spawn `{hunters}` per `hunting-fleet.md` (headline 3 + supporting 12 on DEEP). Forge proof with `{scan} harness` + Foundry.
 
 **If** `critfindsaudit` exists **and** the user asked DEEP: also route EVM depth through that engine (230 vectors, money-map isolation already in-skill). Merge survivors through Phase 3–5.
 
@@ -191,7 +191,7 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 - `references/hunting-fleet.md` — **spawn the specialized hunting fleet, never 1–2 generics**: roster, parallel spawn, merge gates.
 - `references/coverage-wave.md` — second wave on entry points no hunter actually opened.
 - `references/skeptic-agent.md` / `prover-agent.md` / `recon-agent.md` — verify and prove; hunters are not verifiers.
-- `references/hunters/` — **headline (ours):** money-map, lifecycle, spec-divergence. **Supporting (Pashov MIT):** the twelve personas. Default `--agents` path.
+- `references/hunters/` — **headline:** money-map, lifecycle, spec-divergence. **Supporting:** twelve specialists (`NOTICE.md`). Default `--agents` path.
 - `references/exploit-patterns.md` — what actually paid 2025–2026 (rounding amplified, donation, init AC). Hunt these before any taxonomy. From CritFindsAudit.
 - `references/xray.md` — bounty-first recon: `{scan} pack` → hunt brief → next command. Standalone `/auditooor XRAY`.
 - `references/protocol-threats.md` — paying assumption-breaks by `census.protocol_types` (vault/lending/amm/staking/escrow). Load matching rows only.
