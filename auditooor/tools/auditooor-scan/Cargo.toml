@@ -1,6 +1,6 @@
 [package]
 name = "auditooor-scan"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 description = "Fast deterministic pre-filter for the auditooor audit stack: ecosystem detection, money-proximity impact map, and novelty-gate fingerprinting. Pure std, no network deps."
 
