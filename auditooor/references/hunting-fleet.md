@@ -2,9 +2,11 @@
 
 When auditooor hunts, it does **not** spawn one or two generic agents. It spawns specialists in parallel from **`{skill}/references/hunters/`** (this skill; no engine required). `xray` nominates the surface; the fleet hunts it.
 
-**Hard rule:** a real hunt (`/auditooor`, `/auditooor DEEP`, a live program) spawns the fleet. Charm spawned 2 generics — never again.
+**Hard rule (unchanged):** a hunt never runs on *generic* agents. Charm spawned 2 generics — never again. Every spawned agent is a named specialist from `{hunters}` with one obsession, a bundle, and the shared rules.
 
-**Mode split:** `/auditooor XRAY` = zero hunters. `/auditooor FUZZ` = invariant-discovery agents, not this fleet.
+**What did change (v0.8): count is not the rule — specialisation is.** The default run is **LITE: three specialists** (`lite-mode.md`), because the recorded runs in `../../benchmark/CALIBRATION.md` show the full fleet adding about one extra lead over a focused pass and none of them payable — while Charm burned a 12-agent fleet on a $10k picked-clean core. This file describes **DEEP**. Spawn it when `{scan} ev` prints `mode: DEEP` or the user types `DEEP`.
+
+**Mode split:** `/auditooor XRAY` = zero hunters. LITE = 3 specialists. `/auditooor QUICK` = 7. DEEP = 15. `/auditooor FUZZ` = invariant-discovery agents, not this fleet.
 
 ## Headline (ours — spawn these first, always)
 
@@ -35,7 +37,7 @@ Each file is a hunting persona. Licence notes in `NOTICE.md`. The product is the
 | `periphery-agent` | routers/wrappers/adapters/migration glue — the un-audited seam |
 | `trust-gap-agent` | trusted-input assumptions: oracle, token, callback, external return values |
 
-**Default** = headline 3 + supporting 12 (15). **DEEP** = same 15, plus optional `critfindsaudit` if installed. **QUICK** = headline 3 + AC/economic/invariant/periphery.
+**LITE (default)** = headline 3. **QUICK** = headline 3 + AC/economic/invariant/periphery (7). **DEEP** = headline 3 + supporting 12 (15), plus optional `critfindsaudit` if installed.
 
 **Money-map isolation (HARD):** do **not** inject the xray impact map or other agents' FINDINGs into the money-map prompt. Source bundle + `exploit-patterns.md` rounding/AC recipes only. Agreement with the 12 is only a signal if this agent started from the code.
 
@@ -43,7 +45,8 @@ Every agent inherits `{skill}/references/shared-rules.md`, `senior-auditor-sop.m
 
 ## Fleet selection
 
-- **Default / DEEP:** spawn **headline 3 + supporting 12**.
+- **LITE (default):** headline 3 only — or on `SEAM` posture, `periphery` + `money-map` + `access-control`. No coverage wave, one skeptic only on a Phase-4 candidate.
+- **DEEP:** spawn **headline 3 + supporting 12**.
 - **QUICK:** headline 3 + `access-control`, `economic-security`, `invariant`, `periphery`.
 - **Fortress warning:** if EV Phase 0 flagged a fortress (many audits + FV, no un-audited seam), spawning the full fleet still finds $0 — the swarm data is unambiguous. Do not spawn a fleet at a fortress to feel productive; re-target instead (`impact-model.md`). More agents never beats a better target.
 
@@ -54,12 +57,14 @@ Every specialist gets **the whole source in one bundle** and the fleet runs **in
 1. **Pack once** (before any spawn):
 
 ```
-{scan} pack <dir> --out <recon> --agents {skill}/references/hunters
+{scan} pack <dir> --out <recon> --agents {skill}/references/hunters --deep
 ```
+
+(Without `--deep` the pack is LITE-sized: 3 bundles, top-8 focus set. On DEEP you are buying every role and every file — that is the point of the flag.)
 
 (`{engine}/references/hacking-agents` is the fallback if this skill was installed without `references/hunters/`.)
 
-That writes `source.md`, `hunt.md`, `entries.md`, `PROPERTIES.md`, `xray.json`, and `fleet/*-bundle.md`. Do not ask agents to glob the repo.
+That writes `source.md`, `hunt.md`, `entries.md`, `PROPERTIES.md`, `xray.json`, and `fleet/*-bundle.md`. Do not ask agents to glob the repo. Bundles inline the focus set; files below the cut are listed as a read-on-demand manifest and read by path only when a lead points at one.
 
 2. **Spawn all selected roles in ONE message, in the background** — Claude Code `Agent` with `run_in_background: true`; Grok `spawn_subagent` with `background: true` (no `capability_mode`); Cursor's subagent tool if exposed. Description `[auditooor:<role>]`. Foreground/serialized spawning is forbidden on a real hunt when the runtime can parallelize; with no subagent tool, run roles sequentially inline per `SKILL.md` *Runtime dispatch*.
 

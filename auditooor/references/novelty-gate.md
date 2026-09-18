@@ -2,6 +2,25 @@
 
 A proven bug that's already public, already patched, or already in your outcome ledger pays **zero** — worse than zero, because you spent PoC tokens on it. Run this gate in Phase 3, *before* any engine forges a proof.
 
+## Run half of it in Phase 0, as a briefing
+
+The gate is cheapest the earlier it fires, and the recorded runs prove it: on Cork
+the stack found and fully PoC'd a real bug, then killed it as known-issue #213
+(`../../benchmark/CALIBRATION.md`, run 5). Every token after "this is a
+`redeemEarlyLv` DoS" was waste, and the kill was sitting in the program's own
+known-issues list the whole time.
+
+So in **Phase 0**, before any code is read:
+
+1. `{scan} novelty --protocol P --mechanism <the protocol's top mechanism> --sink <its main value sink>` and run the queries.
+2. Read the program's **known-issues / previously-reported** section in full.
+3. Skim the **titles** of every prior audit's findings and the changelog for this protocol — titles only, not bodies. That is enough to name the classes.
+
+Paste the resulting list of dead classes into the hunt brief as
+**"already known — do not chase"**, and hand it to every hunter. A hunter that
+never opens a known class costs nothing; a PoC for one costs the whole run.
+Phase 3 then only has to clear what is genuinely new.
+
 ## ⚠️ Honest limit: `fingerprint` is SELF-dedup only — novelty is the weakest pillar
 
 The `auditooor-scan fingerprint` ledger is a **local** file. It only knows what *you* logged. It **cannot** tell you whether a bug is:

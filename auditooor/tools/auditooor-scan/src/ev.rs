@@ -41,12 +41,42 @@ pub struct EvInputs {
     pub seam_value: bool,
     /// Dollar-equivalent cost of committing a full fleet run (token+time+opportunity).
     pub fleet_cost_usd: f64,
+    /// Cost of the LITE pipeline. `None` = `fleet_cost_usd * LITE_COST_FRACTION`.
+    pub lite_cost_usd: Option<f64>,
+}
+
+/// Which pipeline the run should actually buy. The verdict says "is this target
+/// worth anything"; the mode says "how much machine do you get to spend on it".
+/// LITE is the default because on nearly every profile the marginal bugs a full
+/// fleet adds are worth less than the tokens it burns to add them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// Do not hunt.
+    Abort,
+    /// Phase 0/1 recon + <=3 hunters on the focus set. The default.
+    Lite,
+    /// Full fleet + coverage wave + skeptics. Has to be *earned*.
+    Deep,
+}
+
+impl Mode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Mode::Abort => "ABORT",
+            Mode::Lite => "LITE",
+            Mode::Deep => "DEEP",
+        }
+    }
 }
 
 pub struct EvResult {
     pub verdict: Verdict,
+    pub mode: Mode,
     pub p_find: f64,
+    /// P(payable bug) for the LITE pipeline — a fraction of the fleet's reach.
+    pub p_find_lite: f64,
     pub ev_usd: f64,
+    pub ev_lite_usd: f64,
     pub fortress_score: f64,
     pub rationale: Vec<String>,
 }
@@ -54,6 +84,15 @@ pub struct EvResult {
 /// Base probability that a full fleet lands a payable+novel+proven bug on an
 /// average in-scope target. Honest and low.
 const P_BASE: f64 = 0.12;
+
+/// Share of the fleet's reach that 3 focused hunters on the ranked focus set
+/// retain. Calibration note: across the recorded runs in `benchmark/CALIBRATION.md`
+/// every candidate the full fleet produced came from the top-ranked files the
+/// LITE focus set already contains, so this is generous to DEEP, not to LITE.
+const LITE_REACH: f64 = 0.55;
+
+/// Default dollar-equivalent cost of a LITE run relative to a fleet run.
+pub const LITE_COST_FRACTION: f64 = 0.12;
 
 pub fn evaluate(inp: &EvInputs) -> EvResult {
     let mut r: Vec<String> = Vec::new();
@@ -118,7 +157,42 @@ pub fn evaluate(inp: &EvInputs) -> EvResult {
         Verdict::Proceed
     };
 
-    EvResult { verdict, p_find: p, ev_usd: ev, fortress_score, rationale: r }
+    // ---- mode: what pipeline the EV actually pays for ----
+    let lite_cost = inp.lite_cost_usd.unwrap_or(inp.fleet_cost_usd * LITE_COST_FRACTION);
+    let p_lite = p * LITE_REACH;
+    let ev_lite = inp.cap_usd * p_lite - lite_cost;
+    // DEEP is bought only when the *marginal* reach it adds clears 3x its
+    // marginal cost. Anything else is LITE: same gates, a fraction of the burn.
+    let marginal_gain = inp.cap_usd * (p - p_lite);
+    let marginal_cost = (inp.fleet_cost_usd - lite_cost).max(1.0);
+    let mode = match verdict {
+        Verdict::Abort => Mode::Abort,
+        _ if marginal_gain > 3.0 * marginal_cost && verdict == Verdict::Proceed => {
+            r.push(format!(
+                "DEEP earned: marginal reach ${:.0} > 3x marginal cost ${:.0}.",
+                marginal_gain, marginal_cost
+            ));
+            Mode::Deep
+        }
+        _ => {
+            r.push(format!(
+                "LITE (default): EV_lite ${:.0} at ${:.0} vs fleet ${:.0} at ${:.0} — the fleet's extra reach does not pay for itself.",
+                ev_lite, lite_cost, ev, inp.fleet_cost_usd
+            ));
+            Mode::Lite
+        }
+    };
+
+    EvResult {
+        verdict,
+        mode,
+        p_find: p,
+        p_find_lite: p_lite,
+        ev_usd: ev,
+        ev_lite_usd: ev_lite,
+        fortress_score,
+        rationale: r,
+    }
 }
 
 #[cfg(test)]
@@ -127,14 +201,15 @@ mod tests {
 
     fn base() -> EvInputs {
         EvInputs { cap_usd: 100_000.0, audits: 0, age_years: 0.0, crowded: false,
-            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0 }
+            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None }
     }
 
     #[test]
     fn charm_fortress_aborts() {
         let inp = EvInputs { cap_usd: 10_000.0, audits: 4, age_years: 5.0, crowded: true,
-            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0 };
+            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None };
         assert_eq!(evaluate(&inp).verdict, Verdict::Abort);
+        assert_eq!(evaluate(&inp).mode, Mode::Abort);
     }
 
     #[test]
@@ -150,6 +225,27 @@ mod tests {
             seam_value: true, ..base() };
         // Not the hard-kill (seam lift present) and EV should clear.
         assert_ne!(evaluate(&inp).verdict, Verdict::Abort);
+    }
+
+    #[test]
+    fn default_mode_is_lite_on_an_ordinary_target() {
+        // $100k cap, 4 audits, 1.5y, crowded: real EV, but the fleet's extra
+        // reach is worth less than the tokens it costs.
+        let inp = EvInputs { cap_usd: 100_000.0, audits: 4, age_years: 1.5, crowded: true, ..base() };
+        assert_eq!(evaluate(&inp).mode, Mode::Lite);
+    }
+
+    #[test]
+    fn deep_is_earned_only_by_a_big_uncrowded_cap() {
+        let inp = EvInputs { cap_usd: 1_000_000.0, fresh_code: true, seam_value: true, ..base() };
+        assert_eq!(evaluate(&inp).mode, Mode::Deep);
+    }
+
+    #[test]
+    fn lite_ev_is_reported_and_positive_when_proceeding() {
+        let res = evaluate(&EvInputs { cap_usd: 500_000.0, fresh_code: true, ..base() });
+        assert!(res.ev_lite_usd > 0.0);
+        assert!(res.p_find_lite < res.p_find);
     }
 
     #[test]

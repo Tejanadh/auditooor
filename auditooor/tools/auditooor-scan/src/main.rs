@@ -96,7 +96,8 @@ fn cmd_xray(args: &[String]) {
     let json = auditooor_scan::xray::generate(Path::new(dir), top);
     if let Some(out) = flag(args, "--out") {
         let agents = flag(args, "--agents").map(Path::new);
-        match auditooor_scan::pack::write_pack(Path::new(dir), Path::new(out), &json, agents) {
+        let opts = pack_opts(args);
+        match auditooor_scan::pack::write_pack(Path::new(dir), Path::new(out), &json, agents, &opts) {
             Ok(files) => {
                 eprintln!("wrote recon pack -> {out} ({})", files.join(", "));
                 print!("{json}");
@@ -111,9 +112,28 @@ fn cmd_xray(args: &[String]) {
     }
 }
 
+/// Pack sizing. LITE is the default: 3 headline roles, top-8 focus set.
+/// `--deep` buys every role and every file; `--roles`/`--focus` override either.
+fn pack_opts(args: &[String]) -> auditooor_scan::pack::PackOpts {
+    use auditooor_scan::pack::PackOpts;
+    let mut opts = if has_flag(args, "--deep") { PackOpts::deep() } else { PackOpts::default() };
+    if let Some(r) = flag(args, "--roles") {
+        opts.roles = if r == "all" {
+            None
+        } else {
+            Some(r.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
+        };
+    }
+    if let Some(f) = flag(args, "--focus").and_then(|v| v.parse::<usize>().ok()) {
+        opts.focus_files = f;
+    }
+    opts
+}
+
 fn cmd_pack(args: &[String]) {
     if !has_flag(args, "--out") {
-        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents <hacking-agents-dir>]");
+        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents DIR] [--deep] [--roles a,b,c|all] [--focus N]");
+        eprintln!("  default (LITE): 3 headline bundles, top-8 focus set inlined, rest read-on-demand");
         exit(2);
     }
     cmd_xray(args);
@@ -228,7 +248,8 @@ fn cmd_outcome(args: &[String]) {
     }
     let payout: u64 = flag(args, "--payout").and_then(|v| v.parse().ok()).unwrap_or(0);
     let notes = flag(args, "--notes").unwrap_or("");
-    let ts = flag(args, "--ts").unwrap_or("now");
+    let today = utc_date();
+    let ts = flag(args, "--ts").unwrap_or(&today);
     match record(lp, ts, protocol, mechanism, sink, lane, status, payout, notes) {
         Ok(()) => eprintln!("recorded {status} outcome for {protocol} -> {ledger}"),
         Err(e) => {
@@ -321,13 +342,37 @@ fn cmd_novelty(args: &[String]) {
     println!("{}", to_json(protocol, mechanism, sink, &fp, self_dedup, corpus_tuple, &queries, json_escape));
 }
 
+/// Today's date as `YYYY-MM-DD`, UTC, pure std. The ledger is the only
+/// instrument that measures lead-to-payout over time; a column that says "now"
+/// on every row measures nothing.
+fn utc_date() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let days = secs.div_euclid(86_400);
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
 fn cmd_ev(args: &[String]) {
     use auditooor_scan::ev::{evaluate, EvInputs};
     let num = |name: &str, default: f64| -> f64 {
         flag(args, name).and_then(|s| s.parse::<f64>().ok()).unwrap_or(default)
     };
     if flag(args, "--cap").is_none() {
-        eprintln!("ev requires --cap <max_bounty_usd> [--audits N] [--age-years F] [--crowded] [--fresh-code] [--seam-value] [--fleet-cost USD]");
+        eprintln!("ev requires --cap <max_bounty_usd> [--audits N] [--age-years F] [--crowded] [--fresh-code] [--seam-value] [--fleet-cost USD] [--lite-cost USD]");
+        eprintln!("  prints verdict (ABORT/SCOPE-ONLY/PROCEED) and mode (ABORT/LITE/DEEP) — mode is what you spend");
         exit(2);
     }
     let inp = EvInputs {
@@ -338,12 +383,16 @@ fn cmd_ev(args: &[String]) {
         fresh_code: has_flag(args, "--fresh-code"),
         seam_value: has_flag(args, "--seam-value"),
         fleet_cost_usd: num("--fleet-cost", 200.0),
+        lite_cost_usd: flag(args, "--lite-cost").and_then(|s| s.parse::<f64>().ok()),
     };
     let res = evaluate(&inp);
     let mut out = String::from("{\n");
     out.push_str(&format!("  \"verdict\": \"{}\",\n", res.verdict.as_str()));
+    out.push_str(&format!("  \"mode\": \"{}\",\n", res.mode.as_str()));
     out.push_str(&format!("  \"ev_usd\": {:.0},\n", res.ev_usd));
+    out.push_str(&format!("  \"ev_lite_usd\": {:.0},\n", res.ev_lite_usd));
     out.push_str(&format!("  \"p_find\": {:.4},\n", res.p_find));
+    out.push_str(&format!("  \"p_find_lite\": {:.4},\n", res.p_find_lite));
     out.push_str(&format!("  \"fortress_score\": {:.1},\n", res.fortress_score));
     out.push_str("  \"rationale\": [\n");
     for (i, line) in res.rationale.iter().enumerate() {

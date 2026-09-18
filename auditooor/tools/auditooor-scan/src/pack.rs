@@ -8,16 +8,68 @@ use std::path::Path;
 
 /// Write `{out}/` containing xray.json, source.md, entries.md, PROPERTIES.md, hunt.md.
 /// Optional `--fleet` copies agent bundles next to source.md.
-pub fn write_pack(root: &Path, out: &Path, xray_json: &str, fleet_agents: Option<&Path>) -> io::Result<Vec<String>> {
+/// How much machine the pack is being built for.
+///
+/// The default used to be: concatenate every in-scope file, then inline that
+/// whole blob into 15 agent bundles. On a mid-size protocol that is the single
+/// largest token line item in a run, and most of it is source no agent will
+/// ever cite. `PackOpts` makes the pack *earn* every byte it hands out.
+pub struct PackOpts {
+    /// Only write bundles for these roles (bare names, e.g. `money-map`).
+    /// `None` = every `*-agent.md` in the agents dir.
+    pub roles: Option<Vec<String>>,
+    /// Inline only the top-N files by `risk_score` into each bundle; the rest
+    /// are listed as a read-on-demand manifest. 0 = inline everything.
+    pub focus_files: usize,
+    /// Hard cap on inlined source bytes per bundle.
+    pub inline_cap: usize,
+}
+
+impl Default for PackOpts {
+    fn default() -> Self {
+        // LITE is the default pack: 3 headline hunters, top-8 focus set.
+        Self {
+            roles: Some(vec!["money-map".into(), "lifecycle".into(), "spec-divergence".into()]),
+            focus_files: 8,
+            inline_cap: 120_000,
+        }
+    }
+}
+
+impl PackOpts {
+    /// Every role, every file — what the old default did. Buy it with DEEP.
+    pub fn deep() -> Self {
+        Self { roles: None, focus_files: 0, inline_cap: 400_000 }
+    }
+}
+
+pub fn write_pack(
+    root: &Path,
+    out: &Path,
+    xray_json: &str,
+    fleet_agents: Option<&Path>,
+    opts: &PackOpts,
+) -> io::Result<Vec<String>> {
     fs::create_dir_all(out)?;
     let mut written = Vec::new();
 
     fs::write(out.join("xray.json"), xray_json)?;
     written.push("xray.json".into());
 
-    let source = build_source_md(root);
+    // source.md always holds the full tree — it is the read-on-demand backstop.
+    let source = build_source_md(root, &[]);
     fs::write(out.join("source.md"), &source)?;
     written.push("source.md".into());
+
+    let focus = focus_set(root, opts.focus_files);
+    let bundle_source = if focus.is_empty() {
+        source.clone()
+    } else {
+        let f = build_source_md(root, &focus);
+        fs::write(out.join("focus.md"), &f)?;
+        written.push("focus.md".into());
+        f
+    };
 
     let entries_md = entries_md_from_json(xray_json);
     fs::write(out.join("entries.md"), entries_md)?;
@@ -34,22 +86,52 @@ pub fn write_pack(root: &Path, out: &Path, xray_json: &str, fleet_agents: Option
     written.push("hunt.md".into());
 
     if let Some(agents) = fleet_agents {
-        let n = write_fleet_bundles(out, &source, agents)?;
+        let n = write_fleet_bundles(out, &bundle_source, agents, opts)?;
         written.push(format!("fleet bundles: {n}"));
     }
     Ok(written)
 }
 
-fn build_source_md(root: &Path) -> String {
+/// Top-N in-scope files by `risk_score`. Empty when `n == 0` (inline everything).
+fn focus_set(root: &Path, n: usize) -> Vec<String> {
+    if n == 0 {
+        return Vec::new();
+    }
+    crate::scan_repo(root).into_iter().take(n).map(|s| s.path).collect()
+}
+
+/// Concatenate in-scope source. With a non-empty `focus`, inline only those
+/// files and list the rest as a read-on-demand manifest — an agent that needs a
+/// deferred file reads it by path, instead of every agent paying for every file.
+fn build_source_md(root: &Path, focus: &[String]) -> String {
+    let focused = !focus.is_empty();
     let mut s = String::from("# In-scope source\n\n");
-    s.push_str("Concatenated by `auditooor-scan pack`. Agents read this instead of globbing the repo.\n\n");
+    if focused {
+        s.push_str("**Focus set** — the top files by `risk_score`, inlined. Everything else is \
+listed at the bottom: read those by path only if your lane actually needs them.\n\n");
+    } else {
+        s.push_str("Concatenated by `auditooor-scan pack`. Agents read this instead of globbing the repo.\n\n");
+    }
+    let mut deferred: Vec<String> = Vec::new();
     for f in crate::walk_files(root) {
-        let rel = f.strip_prefix(root).unwrap_or(&f).to_string_lossy();
+        let rel = f.strip_prefix(root).unwrap_or(&f).to_string_lossy().to_string();
+        if focused && !focus.iter().any(|p| *p == rel) {
+            deferred.push(rel);
+            continue;
+        }
         let src = match fs::read_to_string(&f) {
             Ok(x) => x,
             Err(_) => continue,
         };
         s.push_str(&format!("### {rel}\n\n```\n{src}\n```\n\n"));
+    }
+    if !deferred.is_empty() {
+        s.push_str("## Read on demand (not inlined)\n\n");
+        s.push_str("Lower `risk_score`. Read the path directly if a lead points at it.\n\n");
+        for d in &deferred {
+            s.push_str(&format!("- `{d}`\n"));
+        }
+        s.push('\n');
     }
     s
 }
@@ -136,7 +218,12 @@ fn props_md_from_json(json: &str) -> String {
     s
 }
 
-fn write_fleet_bundles(out: &Path, source: &str, agents: &Path) -> io::Result<usize> {
+fn write_fleet_bundles(
+    out: &Path,
+    source: &str,
+    agents: &Path,
+    opts: &PackOpts,
+) -> io::Result<usize> {
     let parent = agents.parent().unwrap_or(agents);
     let sop = read_if(&agents.join("senior-auditor-sop.md"))
         .or_else(|| read_if(&parent.join("senior-auditor-sop.md")))
@@ -150,17 +237,23 @@ fn write_fleet_bundles(out: &Path, source: &str, agents: &Path) -> io::Result<us
     };
     let fleet_dir = out.join("fleet");
     fs::create_dir_all(&fleet_dir)?;
-    // Cap source inline so a 2MB protocol doesn't explode 12 copies.
-    let inline = if source.len() < 400_000 {
+    // Cap source inline so a big protocol doesn't explode across N copies.
+    let inline = if source.len() < opts.inline_cap {
         source
     } else {
-        "(source.md is large — Read ../source.md; do not skip files.)\n"
+        "(source is over the inline cap — Read ../source.md and ../focus.md; start with focus.md.)\n"
     };
     for ent in dir.flatten() {
         let p = ent.path();
         let name = ent.file_name().to_string_lossy().to_string();
         if !name.ends_with("-agent.md") {
             continue;
+        }
+        if let Some(roles) = &opts.roles {
+            let bare = name.trim_end_matches("-agent.md");
+            if !roles.iter().any(|r| r.trim_end_matches("-agent") == bare) {
+                continue;
+            }
         }
         let body = fs::read_to_string(&p).unwrap_or_default();
         let mut b = String::new();
@@ -182,7 +275,7 @@ fn write_fleet_bundles(out: &Path, source: &str, agents: &Path) -> io::Result<us
     let mut idx = fs::File::create(fleet_dir.join("README.md"))?;
     writeln!(
         idx,
-        "12 (or fewer) bundles. Spawn one agent per `*-bundle.md` in parallel. Completeness: every (contract, function) named in any FINDING/LEAD must appear in the merged report."
+        "{n} bundle(s). Spawn one agent per `*-bundle.md` in parallel. Completeness: every (contract, function) named in any FINDING/LEAD must appear in the merged report. Bundles inline the focus set only; deferred files are listed at the end of the Source section and read by path on demand."
     )?;
     Ok(n)
 }
@@ -202,7 +295,7 @@ mod tests {
         let out = std::env::temp_dir().join(format!("auditooor-pack-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
         let json = crate::xray::generate(&root, 5);
-        let files = write_pack(&root, &out, &json, None).unwrap();
+        let files = write_pack(&root, &out, &json, None, &PackOpts::deep()).unwrap();
         assert!(files.iter().any(|f| f == "xray.json"));
         assert!(out.join("source.md").is_file());
         assert!(out.join("hunt.md").is_file());
