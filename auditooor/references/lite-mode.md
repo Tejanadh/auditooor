@@ -54,22 +54,57 @@ then only has to clear what is genuinely new. See `novelty-gate.md`.
 ## Phase 1 — one command
 
 ```
-{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters}
+{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters} --brief <p0-brief.md>
 ```
 
 The default pack is LITE-sized: **3 headline bundles** (money-map, lifecycle,
-spec-divergence) and only the **top-8 files by `risk_score`** inlined, with every
-other file listed as a read-on-demand manifest. Source an agent needs but did not
-get, it reads by path. Nobody pays for a file nobody opens.
+spec-divergence) and only the **top-8 files by `risk_score`** inlined as
+`focus.md`, with every other file listed as a path manifest at its end. A file an
+agent needs but did not get, it reads by path. Nobody pays for a file nobody opens.
 
-Override when you have a reason: `--focus N`, `--roles a,b,c|all`, `--deep`.
+`--brief` puts the Phase-0 prior-art list at the top of every bundle as
+**"already known — DO NOT CHASE"**, so a known class dies in the hunter instead of
+in Phase 3 after a PoC.
 
-Read `hunt.md`. Do **not** read `source.md` yourself — that is the agents' job,
-and re-reading it in the orchestrator doubles the bill.
+Override when you have a reason: `--focus N`, `--roles a,b,c|all`, `--deep`,
+`--full-source`.
+
+### The source.md rule (hard)
+
+**LITE does not write `source.md`, and you do not read it.** The whole tree
+concatenated on disk is exactly the file an orchestrator wanders into, and one
+such read costs more than the focus set saved. In LITE:
+
+| Allowed to read | Never |
+|---|---|
+| `hunt.md` (orchestrator) | `source.md` — it does not exist in LITE, and `--full-source` is not the default for a reason |
+| `focus.md` + bundles (agents) | the repo by glob |
+| a deferred file **by path**, when a lead points at it | the whole deferred manifest, file by file |
+
+If you catch yourself wanting the whole tree, the honest move is to say so and
+propose DEEP — not to read it silently inside a LITE run.
+
+## What an agent gets — exactly four things
+
+1. Its short role prompt (target, game, posture, impact-map pointer).
+2. Its bundle **path** — never inlined source in the prompt.
+3. The prior-art brief (already inside the bundle via `--brief`).
+4. The shared + bounty rules the bundle carries.
+
+Not the doctrine. Not the recon directory. Not another agent's findings (the
+money-map agent's isolation is a hard rule). In LITE the bundle also omits the
+senior-auditor SOP — the role file plus the shared rules already carry the method.
 
 ## Phase 2 — at most three hunters
 
-Spawn in one message, in the background, each pointed at its bundle:
+**Print the commitment banner first:**
+
+```
+LITE | agents: 3 max | coverage wave: no | skeptic wave: no (one skeptic at Phase 4 only)
+     | source.md: not written, not read | reading: focus.md + bundles + prior-art brief
+```
+
+Then spawn in one message, in the background, each pointed at its bundle:
 
 | Posture | Roles |
 |---|---|
@@ -77,8 +112,22 @@ Spawn in one message, in the background, each pointed at its bundle:
 | `HUNT` / mixed | `money-map`, `lifecycle`, `spec-divergence` |
 | `INVARIANT` | skip hunters — go to `/auditooor FUZZ` |
 
+This mapping is a **hypothesis under measurement**, not a settled answer: it is
+three roles chosen because they cover accounting, state-transition and intent,
+which is where the recorded findings clustered. Log the role that produced each
+candidate in the outcome notes (`role=`), and when the ledger says a lane never
+pays on a posture, change the mapping rather than adding a fourth agent.
+
 Prompt stays as in `hunting-fleet.md`, minus the coverage-wave language. Agents
 get bundle paths, never inlined source in the prompt.
+
+## Phase 3 — do not pay for novelty twice
+
+The Phase-0 brief already cleared the known classes. In Phase 3, run the
+world-search **only** for mechanisms the brief did not cover; mark the others
+`novelty: covered-by-phase-0-brief` and move on. A candidate whose class *is* in
+the brief should never have reached here — kill it, and note the leak, because it
+means a hunter ignored the "do not chase" block.
 
 ## Escalating to DEEP
 

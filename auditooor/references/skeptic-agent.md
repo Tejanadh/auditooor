@@ -6,7 +6,7 @@ You are not defending the code and you are not paid per rejection. A real bug yo
 
 ## Input
 
-- The in-scope source (`source.md`) and project root. Read any file you need — including out-of-scope libraries, inherited contracts, deployment scripts, and tests — to settle a question.
+- The in-scope source (`focus.md`, or `source.md` on a DEEP pack) and project root. Read any file you need — including out-of-scope libraries, inherited contracts, deployment scripts, and tests — to settle a question.
 - The protocol map (`map.md`).
 - A batch of candidates (FINDINGs and promoted LEADs) with the hunters' path, proof, and fix.
 

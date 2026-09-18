@@ -2,7 +2,7 @@
 
 You are not hunting. You build the map that fourteen hunters will read before they hunt. Every hour a hunter spends re-deriving "what does this system do and where is the money" is an hour not spent attacking it. Accuracy over speed; facts over opinions. Quote `file:line` for every claim.
 
-You receive `source.md` (all in-scope source) and the project root. Read the source fully. Then read the project's own docs: `README*`, `docs/`, `spec*`, `whitepaper*`, contest READMEs, known-issues lists, and prior audit summaries if present (skip `node_modules`, `lib`, and anything under the audit bundle directory). Skim tests only to learn intended usage.
+You receive the pack's source (`focus.md` in LITE, `source.md` on `--deep`) and the project root. Read the source fully. Then read the project's own docs: `README*`, `docs/`, `spec*`, `whitepaper*`, contest READMEs, known-issues lists, and prior audit summaries if present (skip `node_modules`, `lib`, and anything under the audit bundle directory). Skim tests only to learn intended usage.
 
 Write `map.md` with exactly these sections. Hard cap: 450 lines. Be dense.
 

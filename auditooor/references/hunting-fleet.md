@@ -64,7 +64,7 @@ Every specialist gets **the whole source in one bundle** and the fleet runs **in
 
 (`{engine}/references/hacking-agents` is the fallback if this skill was installed without `references/hunters/`.)
 
-That writes `source.md`, `hunt.md`, `entries.md`, `PROPERTIES.md`, `xray.json`, and `fleet/*-bundle.md`. Do not ask agents to glob the repo. Bundles inline the focus set; files below the cut are listed as a read-on-demand manifest and read by path only when a lead points at one.
+On `--deep` that writes `source.md`, `hunt.md`, `entries.md`, `PROPERTIES.md`, `xray.json`, and `fleet/*-bundle.md`. **In LITE there is no `source.md` at all** — `focus.md` holds the top-ranked files and a path manifest for the rest (`lite-mode.md`). Do not ask agents to glob the repo.
 
 2. **Spawn all selected roles in ONE message, in the background** — Claude Code `Agent` with `run_in_background: true`; Grok `spawn_subagent` with `background: true` (no `capability_mode`); Cursor's subagent tool if exposed. Description `[auditooor:<role>]`. Foreground/serialized spawning is forbidden on a real hunt when the runtime can parallelize; with no subagent tool, run roles sequentially inline per `SKILL.md` *Runtime dispatch*.
 

@@ -92,7 +92,7 @@ The binary is a *pre-filter and token-saver*, never a bug-finder — its score r
 Win by **handing files to the next stage**, not by chatting. Conversation memory is not an artifact.
 
 ```
-pack/ → auditooor-recon/{xray.json, source.md, entries.md, PROPERTIES.md, hunt.md, fleet/}
+pack/ → auditooor-recon/{xray.json, focus.md (+source.md on --deep), entries.md, PROPERTIES.md, hunt.md, fleet/}
       → FUZZ reads PROPERTIES.md + deltas + protocol-threats.md → harness (3 actors, clamped+raw, per-actor ghosts)
       → fleet reads fleet/*-bundle.md
       → merge gates → novelty → fork PoC → outcome ledger
@@ -119,11 +119,13 @@ Run the novelty queries **now**, as a *briefing*, and put known issues + prior-a
 
 ### Phase 1 — Recon pack (one command) + Abort B
 ```
-{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters}          # LITE sizing
-{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters} --deep   # only on DEEP
+{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters} --brief <p0-brief.md>   # LITE
+{scan} pack <dir> --out <dir>/auditooor-recon --agents {hunters} --brief <p0-brief.md> --deep
 ```
 
-Read `hunt.md`. **Do not read `source.md` yourself** — that is the agents' job, and reading it in the orchestrator pays for it twice. Do not glob the repo. Do not spawn anyone yet.
+Write the Phase-0 prior-art findings to a file and pass `--brief`: it lands at the top of every bundle as **"already known — DO NOT CHASE"**, so the kill happens in the hunter, not three phases later.
+
+Read `hunt.md`. **Nothing else.** LITE writes no `source.md` at all — `focus.md` holds the top-8 by `risk_score` plus a path manifest for the rest, and the bundles already carry it. Do not glob the repo, do not read `focus.md` in the orchestrator, do not spawn anyone yet.
 
 **Abort B — before any agent spawns.** From `xray.json`:
 
@@ -135,9 +137,20 @@ Read `hunt.md`. **Do not read `source.md` yourself** — that is the agents' job
 | the in-scope mechanism is already in the Phase-0 prior-art brief | ABORT — known issue |
 
 ### Phase 2 — Hunt (LITE: at most three)
+**Print this banner before spawning anything** — it is the commitment the rest of the phase is held to:
+
+```
+LITE | agents: 3 max | coverage wave: no | skeptic wave: no (one skeptic at Phase 4 only)
+     | source.md: not written, not read | reading: focus.md + bundles + prior-art brief
+```
+
+On DEEP, print the same line with the real numbers. A run whose banner says LITE and then spawns a fourth agent is an operator bug.
+
 Adopt `posture.verdict`. Impact map = permissionless rows in `entries.md` with `value_flow != none` (`references/xray.md`).
 
 - **LITE (default):** three roles by posture — `SEAM` → periphery/money-map/access-control; otherwise money-map/lifecycle/spec-divergence. One message, background, each agent pointed at its `fleet/<role>-bundle.md` **path**. No coverage wave; one skeptic only on a candidate that reaches Phase 4. `references/lite-mode.md`.
+
+  **An agent gets exactly four things:** its short role prompt, its bundle path, the prior-art brief (already baked into the bundle by `pack --brief`), and the shared/bounty rules the bundle carries. Never the doctrine, never the recon directory, never another agent's output, never inlined source in the prompt.
 - **DEEP:** the full fleet, then completeness gate → coverage wave (`coverage-wave.md`) → skeptics (`skeptic-agent.md`). `references/hunting-fleet.md`.
 - **`INVARIANT` posture / `/auditooor FUZZ`:** five discovery agents on `PROPERTIES.md`, then Foundry (`invariant-discovery.md`). Not the hacking fleet.
 
@@ -146,7 +159,7 @@ A candidate that cannot be tied to a line on the impact map is a code flaw, not 
 **Escalation is the user's call.** If LITE produced an impact-mapped candidate, print what DEEP would add and the `ev` numbers, then stop. Never auto-escalate.
 
 ### Phase 3 — Novelty gate (before PoC)
-Half of this was already paid for in Phase 0. For each survivor: (1) local self-dedup via `{scan} fingerprint` against the ledger — `DUPLICATE` kills it; (2) world-novelty — run every `{scan} novelty` query through the runtime's web search plus the manual checks (program known-issues, prior audits, changelog, fork-inheritance). Any hit → `DEAD-DUP`, unproven. `fingerprint --add` on a submitted finding. `references/novelty-gate.md`.
+Half of this was already paid for in Phase 0 — **do not buy it twice.** A candidate whose class is in the Phase-0 brief is already dead (it should have died in the hunter; if one reaches here, kill it and note the leak). Run the world-search **only** for mechanisms the Phase-0 brief did not cover, and mark the rest `novelty: covered-by-phase-0-brief`. For each survivor: (1) local self-dedup via `{scan} fingerprint` against the ledger — `DUPLICATE` kills it; (2) world-novelty — run every `{scan} novelty` query through the runtime's web search plus the manual checks (program known-issues, prior audits, changelog, fork-inheritance). Any hit → `DEAD-DUP`, unproven. `fingerprint --add` on a submitted finding. `references/novelty-gate.md`.
 
 ### Phase 4 — Unified proof standard
 `{scan} harness` + Foundry. The shrunk sequence is the PoC seed; `harness --fork` is the Immunefi shape. Same bar on every chain: executes, moves or locks value, minimal. No PoC → LEAD, never a finding. `references/proof-standard.md`.
@@ -157,10 +170,10 @@ Rank by **expected dollars**: `P(accept) × payout_tier × novelty_confidence`. 
 ```
 {scan} outcome --protocol P --mechanism M --sink S --lane machine|human \
   --status submitted|accepted|rejected|duplicate|no_response [--payout N] \
-  --notes "mode=<LITE|DEEP|ABORT> tokens=<n> phase=<0|1|2|4>"
+  --notes "mode=<LITE|DEEP|ABORT> tokens=<n> phase=<0|1|2|4> role=<the hunter that found it>"
 ```
 
-`{scan} outcome --stats` reads the calibration back. This ledger and `benchmark/CALIBRATION.md` — not any labelled benchmark — are the only instruments that measure lead-to-payout, and they only fill by hunting. Put `tokens=` in every row; without it the cost half of dollars-per-run is guesswork.
+`{scan} outcome --stats` reads the calibration back. This ledger and `benchmark/CALIBRATION.md` — not any labelled benchmark — are the only instruments that measure lead-to-payout, and they only fill by hunting. Put `tokens=` in every row — without it the cost half of dollars-per-run is guesswork and LITE's savings stay an argument about pack size instead of a measurement. Put `role=` in every row too: that is the only way to learn whether the three LITE lanes actually cover the paying bugs, or whether the mapping needs to change.
 
 ## Modes
 
@@ -170,7 +183,7 @@ Default is **LITE**. Everything below is a deliberate purchase.
 |---|---|---|---|---|
 | `/auditooor SCOPE <url\|dir>` | 0 | — | none | before committing anything. Phase 0 only |
 | `/auditooor XRAY [path]` | 0 | — | LITE | recon only: `pack`, print `hunt.md`, stop (`xray.md`) |
-| **`/auditooor <path>` (LITE)** | **≤3** | none | LITE | **the default** (`lite-mode.md`) |
+| **`/auditooor <path>`** — **this IS LITE; a bare `/auditooor` with no mode word is always LITE** | **≤3** | none | LITE | **the default** (`lite-mode.md`) |
 | `/auditooor QUICK` | 7 | none | `--roles` 7 | triage a target you already trust |
 | `/auditooor DEEP` | 15 | coverage + skeptics | `--deep` | `ev` says `mode: DEEP`, or the user asks |
 | `/auditooor FUZZ [path]` | 5 discovery | Foundry | LITE | protocol-logic hunt via invariants (`invariant-discovery.md`) |
@@ -186,7 +199,8 @@ Default is **LITE**. Everything below is a deliberate purchase.
 3. **Novelty before proof.** A candidate that matches a public disclosure or the outcome ledger is killed in Phase 3, unproven. (`references/novelty-gate.md`.)
 4. **Intended ≠ wrong.** The model is strong at *unusual*, weak at *intended*. Every engine's intent ledger and human checkpoint still apply; Auditooor adds no override.
 5. **EV can abort.** A run with no reachable value or no live program is aborted in Phase 0, before code is read.
-6. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
+6. **In LITE: never read `source.md`.** Use `focus.md` and the fleet bundles only, and read a deferred file by its path when a lead points at it. LITE does not even write `source.md` — if you find yourself reaching for the whole tree, that is the run leaking. (`--full-source` exists for the rare case you truly need it; it is not the default for a reason.)
+7. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
 
 ## Native hunt vs optional engines
 

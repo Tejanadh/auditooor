@@ -127,13 +127,27 @@ fn pack_opts(args: &[String]) -> auditooor_scan::pack::PackOpts {
     if let Some(f) = flag(args, "--focus").and_then(|v| v.parse::<usize>().ok()) {
         opts.focus_files = f;
     }
+    if has_flag(args, "--full-source") {
+        opts.write_full_source = true;
+    }
+    if let Some(bf) = flag(args, "--brief") {
+        match std::fs::read_to_string(bf) {
+            Ok(t) => opts.brief = Some(t),
+            Err(e) => {
+                eprintln!("cannot read --brief {bf}: {e}");
+                exit(2);
+            }
+        }
+    }
     opts
 }
 
 fn cmd_pack(args: &[String]) {
     if !has_flag(args, "--out") {
-        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents DIR] [--deep] [--roles a,b,c|all] [--focus N]");
-        eprintln!("  default (LITE): 3 headline bundles, top-8 focus set inlined, rest read-on-demand");
+        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents DIR] [--deep] [--roles a,b,c|all] [--focus N] [--brief FILE] [--full-source]");
+        eprintln!("  default (LITE): 3 headline bundles, top-8 focus set inlined as focus.md, rest a path manifest.");
+        eprintln!("  LITE writes NO source.md on purpose — the whole tree on disk is a file the orchestrator wanders into.");
+        eprintln!("  --brief FILE: Phase-0 prior-art brief, prepended to every bundle as \"already known, do not chase\".");
         exit(2);
     }
     cmd_xray(args);

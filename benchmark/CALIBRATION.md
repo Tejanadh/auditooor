@@ -68,9 +68,22 @@ cheapest possible outcome and it belongs in the denominator.
 ```
 auditooor-scan outcome --protocol <name> --mechanism <mechanism> --sink <sink> \
   --lane machine|human --status submitted|accepted|rejected|duplicate|no_response \
-  [--payout N] --notes "mode=<LITE|DEEP|ABORT> tokens=<n> phase=<0|1|2|4>"
+  [--payout N] --notes "mode=<LITE|DEEP|ABORT> tokens=<n> phase=<0|1|2|4> role=<finder>"
 ```
 
 Read it back with `auditooor-scan outcome --stats`. Then add the row here with
 the four columns that matter: **pipeline, outcome, would-it-have-paid, tokens**.
-Until `tokens=` is in every row, the cost side of dollars-per-run is guesswork.
+Until `tokens=` is in every row, the cost side of dollars-per-run is guesswork —
+the LITE-is-cheaper claim is currently argued from pack size, which is a proxy, not
+a measurement. `role=` answers the other open question: whether the three LITE
+lanes actually cover the paying bugs.
+
+**Two open questions this file cannot answer yet**, stated so nobody mistakes the
+design for evidence:
+
+1. **LITE quality vs cost.** Nine runs say the fleet added ~1 non-payable lead per
+   target. That is an argument for LITE, not proof that LITE finds what DEEP finds.
+   Only runs where a *payable* bug existed can settle it, and this table has none.
+2. **Novelty against the invisible.** The Phase-0 brief kills public prior art.
+   Concurrent submissions and private findings remain unknowable — the Cork row is
+   a known-issue kill, which is the easy case.

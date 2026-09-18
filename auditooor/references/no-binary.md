@@ -54,7 +54,8 @@ grep -rnE 'delegatecall|initialize\(|selfdestruct|assembly|\.balanceOf\(address\
 
 Focus set = the intersection of "money movers" and "unguarded external" files,
 plus everything the seam query returned. That is your top-8. Read those; list the
-rest as read-on-demand.
+rest as read-on-demand — and do not `cat` the whole tree to "get oriented". The
+`source.md` rule in `lite-mode.md` applies here too: the manifest is the map.
 
 **Abort B still applies:** no unguarded external function touches value → stop.
 

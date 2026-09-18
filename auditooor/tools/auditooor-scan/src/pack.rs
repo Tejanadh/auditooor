@@ -23,6 +23,15 @@ pub struct PackOpts {
     pub focus_files: usize,
     /// Hard cap on inlined source bytes per bundle.
     pub inline_cap: usize,
+    /// Write the full concatenated `source.md`. False in LITE: an unfocused
+    /// source file on disk is a thing the orchestrator wanders into, and
+    /// re-reading it costs more than the pack saved.
+    pub write_full_source: bool,
+    /// Inline the senior-auditor SOP into every bundle. DEEP only — in LITE the
+    /// role file plus the shared/bounty rules already carry the method.
+    pub include_sop: bool,
+    /// Phase-0 prior-art brief, prepended to every bundle as "do not chase".
+    pub brief: Option<String>,
 }
 
 impl Default for PackOpts {
@@ -32,6 +41,9 @@ impl Default for PackOpts {
             roles: Some(vec!["money-map".into(), "lifecycle".into(), "spec-divergence".into()]),
             focus_files: 8,
             inline_cap: 120_000,
+            write_full_source: false,
+            include_sop: false,
+            brief: None,
         }
     }
 }
@@ -39,7 +51,14 @@ impl Default for PackOpts {
 impl PackOpts {
     /// Every role, every file — what the old default did. Buy it with DEEP.
     pub fn deep() -> Self {
-        Self { roles: None, focus_files: 0, inline_cap: 400_000 }
+        Self {
+            roles: None,
+            focus_files: 0,
+            inline_cap: 400_000,
+            write_full_source: true,
+            include_sop: true,
+            brief: None,
+        }
     }
 }
 
@@ -56,18 +75,25 @@ pub fn write_pack(
     fs::write(out.join("xray.json"), xray_json)?;
     written.push("xray.json".into());
 
-    // source.md always holds the full tree — it is the read-on-demand backstop.
-    let source = build_source_md(root, &[]);
-    fs::write(out.join("source.md"), &source)?;
-    written.push("source.md".into());
-
     let focus = focus_set(root, opts.focus_files);
     let bundle_source = if focus.is_empty() {
-        source.clone()
+        // DEEP: source.md holds the whole tree and is the bundle body.
+        let source = build_source_md(root, &[]);
+        fs::write(out.join("source.md"), &source)?;
+        written.push("source.md".into());
+        source
     } else {
+        // LITE: focus.md is the ONLY concatenated source on disk. The deferred
+        // files are a path manifest at its end — read one by path when a lead
+        // points at it, never the whole tree.
         let f = build_source_md(root, &focus);
         fs::write(out.join("focus.md"), &f)?;
         written.push("focus.md".into());
+        if opts.write_full_source {
+            let source = build_source_md(root, &[]);
+            fs::write(out.join("source.md"), &source)?;
+            written.push("source.md".into());
+        }
         f
     };
 
@@ -225,9 +251,13 @@ fn write_fleet_bundles(
     opts: &PackOpts,
 ) -> io::Result<usize> {
     let parent = agents.parent().unwrap_or(agents);
-    let sop = read_if(&agents.join("senior-auditor-sop.md"))
-        .or_else(|| read_if(&parent.join("senior-auditor-sop.md")))
-        .unwrap_or_default();
+    let sop = if opts.include_sop {
+        read_if(&agents.join("senior-auditor-sop.md"))
+            .or_else(|| read_if(&parent.join("senior-auditor-sop.md")))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let shared = read_if(&agents.join("shared-rules.md")).unwrap_or_default();
     let bounty = read_if(&agents.join("bounty-rules.md")).unwrap_or_default();
     let mut n = 0usize;
@@ -241,7 +271,7 @@ fn write_fleet_bundles(
     let inline = if source.len() < opts.inline_cap {
         source
     } else {
-        "(source is over the inline cap — Read ../source.md and ../focus.md; start with focus.md.)\n"
+        "(source is over the inline cap — Read ../focus.md, then named files by path. Do not read the whole tree.)\n"
     };
     for ent in dir.flatten() {
         let p = ent.path();
@@ -258,10 +288,19 @@ fn write_fleet_bundles(
         let body = fs::read_to_string(&p).unwrap_or_default();
         let mut b = String::new();
         b.push_str(&format!("# Bundle {name}\n\n"));
+        if let Some(brief) = &opts.brief {
+            b.push_str("## Already known — DO NOT CHASE\n\n");
+            b.push_str("Prior art gathered in Phase 0. A lead matching any class below is dead \
+before you write it down: it pays zero and a PoC for it is pure waste.\n\n");
+            b.push_str(brief);
+            b.push_str("\n\n");
+        }
         b.push_str("## Source\n\n");
         b.push_str(inline);
-        b.push_str("\n## SOP\n\n");
-        b.push_str(&sop);
+        if opts.include_sop {
+            b.push_str("\n## SOP\n\n");
+            b.push_str(&sop);
+        }
         b.push_str("\n## Specialty\n\n");
         b.push_str(&body);
         b.push_str("\n## Shared rules\n\n");
@@ -301,6 +340,47 @@ mod tests {
         assert!(out.join("hunt.md").is_file());
         let src = fs::read_to_string(out.join("source.md")).unwrap();
         assert!(src.contains("OpenVault"));
+        let _ = fs::remove_dir_all(&out);
+    }
+
+    #[test]
+    fn lite_pack_writes_no_full_source_and_defers_the_rest() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let out = std::env::temp_dir().join(format!("auditooor-lite-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&out);
+        let json = crate::xray::generate(&root, 5);
+        let opts = PackOpts { focus_files: 2, ..PackOpts::default() };
+        write_pack(&root, &out, &json, None, &opts).unwrap();
+        // The whole-tree file must not exist: it is the thing the orchestrator
+        // wanders into, and re-reading it costs more than the pack saved.
+        assert!(!out.join("source.md").exists());
+        let focus = fs::read_to_string(out.join("focus.md")).unwrap();
+        assert!(focus.contains("Read on demand (not inlined)"));
+        // Exactly the focus set is inlined.
+        assert_eq!(focus.matches("\n### ").count() + usize::from(focus.starts_with("### ")), 2);
+        let _ = fs::remove_dir_all(&out);
+    }
+
+    #[test]
+    fn lite_bundles_carry_the_brief_and_skip_the_sop() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let agents = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../references/hunters");
+        if !agents.is_dir() {
+            return; // running outside the skill tree
+        }
+        let out = std::env::temp_dir().join(format!("auditooor-brief-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&out);
+        let json = crate::xray::generate(&root, 5);
+        let opts = PackOpts {
+            brief: Some("- first-depositor inflation: mitigated in v2, known".into()),
+            ..PackOpts::default()
+        };
+        write_pack(&root, &out, &json, Some(&agents), &opts).unwrap();
+        let b = fs::read_to_string(out.join("fleet/money-map-bundle.md")).unwrap();
+        assert!(b.contains("DO NOT CHASE"));
+        assert!(b.contains("first-depositor inflation"));
+        assert!(!b.contains("## SOP"));
         let _ = fs::remove_dir_all(&out);
     }
 }

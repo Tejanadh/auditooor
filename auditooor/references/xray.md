@@ -1,5 +1,9 @@
 # X-Ray — bounty-first recon pack
 
+> **v0.8:** `pack` is LITE-sized by default — 3 bundles, top-8 files inlined as
+> `focus.md`, and **no `source.md`**. Pass `--deep` for the full-tree pack this
+> file describes. See `lite-mode.md`.
+
 `/auditooor XRAY` is the cheap pass: decide *whether* and *where* to hunt before a fleet or a PoC. It is not a contest-prep report and it does not emit findings.
 
 Run once:
@@ -8,7 +12,7 @@ Run once:
 {scan} pack <dir> --out <dir>/auditooor-recon [--agents {engine}/references/hacking-agents]
 ```
 
-That writes `xray.json` (detect, posture, surface, seams, entries, **census**, **properties**, git), `source.md` (every in-scope file concatenated — this is what agents read), `entries.md`, `PROPERTIES.md`, `hunt.md`. Do **not** re-run `detect` / `surface` / `seams`. Print `hunt.md`. Overlay protocol-specific invariant wording onto `PROPERTIES.md`. Stop.
+That writes `xray.json` (detect, posture, surface, seams, entries, **census**, **properties**, git), `focus.md` (top-ranked files inlined + a path manifest for the rest — this is what agents read; `--deep` also writes the full `source.md`), `entries.md`, `PROPERTIES.md`, `hunt.md`. Do **not** re-run `detect` / `surface` / `seams`. Print `hunt.md`. Overlay protocol-specific invariant wording onto `PROPERTIES.md`. Stop.
 
 ## Posture (the only verdict that matters)
 
