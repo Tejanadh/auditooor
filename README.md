@@ -3,7 +3,7 @@
 <p align="center"><i>Optimises dollars-per-run, not findings-per-run.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v0.8.2-skill-627EEA" />
+  <img src="https://img.shields.io/badge/v0.8.3-skill-627EEA" />
   <img src="https://img.shields.io/badge/EVM_native-optional_engines-9945FF" />
   <img src="https://img.shields.io/badge/Proof-Foundry-2ea44f" />
 </p>

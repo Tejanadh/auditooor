@@ -20,3 +20,10 @@ adapts the approach of J4X-Security/K.I.T (https://github.com/J4X-Security/K.I.T
 build a structured register of a protocol's already-known findings from its real
 audit reports, then check every candidate against it before forging a PoC. The
 register schema, two-factor matcher, and CLI are an independent implementation.
+
+The logic-vector decomposition (`references/logic-vectors.md`) and the static
+confirmation pass (`auditooor-scan confirm`) adapt the method of GPTScan (ICSE'24,
+https://github.com/GPTScan/GPTScan): break a logic-bug type into scenario +
+property + key variable, let the model propose, then use static confirmation on
+the key variable to cut false positives before proof. The checks and CLI are an
+independent implementation; no GPTScan code is used.

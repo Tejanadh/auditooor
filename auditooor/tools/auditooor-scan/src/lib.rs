@@ -26,6 +26,7 @@ pub mod pack;
 pub mod deltas;
 pub mod danger;
 pub mod known;
+pub mod confirm;
 
 #[cfg(feature = "solar")]
 pub mod ast;

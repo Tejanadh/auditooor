@@ -77,6 +77,7 @@ The rest are on demand — do not run them "to be thorough", run them when a pha
 | `{scan} detect <dir>` | ecosystem inventory, routes, and the maturity `tactic` to adopt as posture |
 | `{scan} danger <dir>` | danger-keyword census (delegatecall, initialize, flashLoan, …) |
 | `{scan} detectors <file\|dir>` | SIG-01..06 signature/crypto, AC-01..03 access-control/init, ACC-01..04 accounting-anomaly leads |
+| `{scan} confirm <file> --function F --check cei\|guard\|unchecked-return` | **GPTScan-style static confirmation**: cheap deterministic filter between a hunter LEAD and an expensive PoC. REFUTED exits 3 — drop the lead. A filter, not a prover. |
 | `{scan} fingerprint --mechanism M --sink S --entrypoint E [--add]` | stable dedup hash + NOVEL/DUPLICATE against the local ledger |
 | `{scan} gate <dir>` | **Abort B as an exit code** (3 = ABORT). Reads the function census, not the file-level score |
 | `{scan} outcome ... \| --stats` | the outcome ledger — write it every run, aborts included |
@@ -177,6 +178,8 @@ Adopt `posture.verdict`. Impact map = permissionless rows in `entries.md` with `
 - **`INVARIANT` posture / `/auditooor FUZZ`:** five discovery agents on `PROPERTIES.md`, then Foundry (`invariant-discovery.md`). Not the hacking fleet.
 
 A candidate that cannot be tied to a line on the impact map is a code flaw, not a bug — it does not reach Phase 4. Hunters find; skeptics keep. Never re-litigate a skeptic `REFUTED` without a quoted counter-line.
+
+**Confirm before you prove.** Every hunter states its candidate as a `references/logic-vectors.md` scenario+property on a named key variable. For the shapes with a `confirm` check (reentrancy/CEI, unguarded sink, unchecked call), run `{scan} confirm` *before* the skeptic and PoC: `REFUTED` (exit 3) kills the look-alike for the price of one command — the GPTScan lesson that ~80% of these are logic bugs and the cheap static filter is what stops each hypothesis costing a PoC to disprove. `CONFIRMED`/`INCONCLUSIVE` proceed. The paying logic bugs L4–L7 (rounding, donation, stale, oracle) have no local signature — those go straight to the invariant campaign, not `confirm`.
 
 **Escalation is the user's call.** If LITE produced an impact-mapped candidate, print what DEEP would add and the `ev` numbers, then stop. Never auto-escalate.
 
@@ -294,6 +297,7 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 | Phase 2 agent lanes | `hunters/` (headline: money-map, lifecycle, spec-divergence; +12 specialists) |
 | Phase 2, matching `census.protocol_types` rows **only** | `protocol-threats.md` |
 | Phase 2 prioritisation | `exploit-patterns.md` — what actually paid 2025–2026 |
+| Phase 2 hypothesis + confirm | `logic-vectors.md` — scenario·property·key-variable·`confirm`, the GPTScan-style finding structure |
 | `/auditooor FUZZ` or `INVARIANT` posture | `invariant-discovery.md`, `invariant-library.md` |
 | Phase 3 | `novelty-gate.md` |
 | Phase 4 | `proof-standard.md`, `signature-vectors.md` |

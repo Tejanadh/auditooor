@@ -17,7 +17,7 @@ use std::process::exit;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: auditooor-scan <detect|surface|xray|pack|gate|entries|ev|novelty|known|harness|outcome|...> ...");
+        eprintln!("usage: auditooor-scan <detect|surface|xray|pack|gate|entries|ev|novelty|known|confirm|harness|outcome|...> ...");
         exit(2);
     }
     match args[1].as_str() {
@@ -36,6 +36,7 @@ fn main() {
         "ev" => cmd_ev(&args[2..]),
         "gate" => cmd_gate(&args[2..]),
         "known" => cmd_known(&args[2..]),
+        "confirm" => cmd_confirm(&args[2..]),
         "--version" | "-V" => println!("auditooor-scan {}", env!("CARGO_PKG_VERSION")),
         other => {
             eprintln!("unknown subcommand: {other}");
@@ -551,6 +552,31 @@ fn cmd_known(args: &[String]) {
             exit(2);
         }
     }
+}
+
+
+/// Static confirmation of a hunter hypothesis (GPTScan-style): the cheap
+/// deterministic filter between a LEAD and an expensive fork PoC. REFUTED exits 3
+/// so a pipeline drops the lead.
+fn cmd_confirm(args: &[String]) {
+    use auditooor_scan::confirm::{function_body, run};
+    let file = match args.iter().find(|a| !a.starts_with("--")) {
+        Some(f) => f.as_str(),
+        None => { eprintln!("confirm <file.sol> --function F --check cei|unchecked-return|guard"); exit(2); }
+    };
+    let func = match flag(args, "--function") { Some(f) => f, None => { eprintln!("--function required"); exit(2); } };
+    let check = flag(args, "--check").unwrap_or("cei");
+    let src = match std::fs::read_to_string(file) { Ok(s) => s, Err(e) => { eprintln!("cannot read {file}: {e}"); exit(1); } };
+    let (body, line0) = match function_body(&src, func) {
+        Some(x) => x,
+        None => { eprintln!("function '{func}' not found (or is a declaration) in {file}"); exit(2); }
+    };
+    let c = run(check, &body, line0);
+    let ev: Vec<String> = c.evidence.iter().map(|l| format!("{}:{}", file, l)).collect();
+    println!("{{\n  \"check\": \"{}\",\n  \"function\": \"{}\",\n  \"verdict\": \"{}\",\n  \"why\": \"{}\",\n  \"evidence\": [{}]\n}}",
+        check, func, c.verdict.as_str(), auditooor_scan::json_escape(&c.why),
+        ev.iter().map(|e| format!("\"{}\"", auditooor_scan::json_escape(e))).collect::<Vec<_>>().join(", "));
+    exit(c.verdict.exit_code());
 }
 
 fn cmd_detectors(args: &[String]) {
