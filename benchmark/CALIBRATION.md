@@ -23,9 +23,49 @@ top of this file until it changes.
 | 8 | MyCut | 2026-09 | First Flight (EXP) | solo, 2 rounds | 3H / 3M / 8L, 13 PoCs | n/a (EXP-only) |
 | 9 | Alpenglow | 2026-09 | contest → standing program | scope + DIFF hunt | competition was closed (P=0); pivoted; every lead died on per-rank dedup / 20% byzantine bound | no |
 | 10 | Fluid (Instadapp), `contracts/config` | 2026-09-19 | bounty ($500k) | **LITE, 3 agents, 502k tokens** | no finding; 3 lanes independently concluded every entry is `onlyRebalancer`/multisig-gated | no — every candidate needs a trusted role (§3) |
+| 11 | Fluid (Instadapp), `periphery` (wallet/liquidator/buyback/wethWrapper) | 2026-09-19 | bounty ($500k) | **LITE, 3 agents, 317k tokens** | no finding; wallet auth sound, every drain trusted-role-gated, 1 live-state critical closed by `eth_call` | no — no unauthenticated seam |
 
-**Totals:** 10 runs · 1 real bug found and proven autonomously · 0 novel payable
+**Totals:** 11 runs · 1 real bug found and proven autonomously · 0 novel payable
 bugs · **$0 paid** · 2 EXP contest runs with graded findings.
+
+## Run 11 — the second LITE hunt, and the first that used the fixed gate
+
+Same program, different scope: Fluid `periphery` (the smart-wallet factory,
+vault liquidators, buyback, wethWrapper). This is the run the abort machinery was
+rebuilt for, and it behaved:
+
+| | |
+|---|---|
+| Phase 0 | EV `PROCEED`; `mode: DEEP` on cap alone → **overridden to LITE** because scope is 2,007 lines (< 3,000). The mode gate learned "cap size is not scope size" on this run. |
+| Phase 1 | `gate` = `SEAM`, exit 0 — **the census was trusted this time**, and it was right: 12 permissionless entries, 6 seam contracts. |
+| Phase 2 | 3 lanes: access-control, trust-gap, money-map (isolated) |
+| **Fleet cost** | **317,432 tokens** (113k + 113k + 92k) — 37% under run 10's 502k, on a comparable scope, because the pack was tighter and the lanes were better matched |
+| Result | **no payable finding**; every fund-exit path is trusted-role-gated |
+| Live-state check | the one candidate that could have been critical — three periphery proxies deployed with empty init data — was closed by three read-only `owner()` `eth_call`s; all non-zero |
+
+**What this run demonstrates that run 10 could not:** the gate is now load-bearing
+in the good direction too. On run 10 the census was wrong and the abort could not
+fire. Here the census was right, `gate` returned a real SEAM with genuinely
+permissionless entries (`FluidWallet.cast`, the liquidator fallback), and the run
+proceeded to hunt them — correctly, because they were real attack surface, just
+well-defended. A gate that both aborts a fortress and proceeds on a real seam is
+a gate; one that only ever says "proceed" is not.
+
+**The convergence is non-circular.** Three lanes from three starting points
+(guards / callback-authenticity / books) reached no-finding, and the corroboration
+was independent: trust-gap found the same weak `initiator_ == address(this)` check
+access-control flagged, and independently concluded the `_transientAllowHash`
+binding neutralises it. The money-map lane, run under hard isolation, explicitly
+predicted "if a vector lane claims an external-theft path here it diverges from my
+books" — and no lane did. Convergent negatives from isolated starts are the
+cheapest high-confidence "stop" signal this stack has.
+
+**The reward-first verdict stays $0 and stays honest.** Two full LITE hunts on a
+live $500k program, ~820k tokens total, one real bug found (run 5, a duplicate),
+zero paid. The tool is now demonstrably good at *not finding* bugs that are not
+there and at *not spending* on fortresses — which is worth real money in avoided
+waste, but is not the same as landing a payout, and the ledger will keep saying so
+until one lands.
 
 ## Run 10 is the first with real cost data, and the first to indict the tool
 
