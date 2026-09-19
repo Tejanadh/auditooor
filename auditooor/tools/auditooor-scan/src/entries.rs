@@ -70,6 +70,9 @@ const ADMIN_BODY: &[&str] = &[
 ];
 
 const ROLE_BODY: &[&str] = &[
+    // `if (msg.sender != X) revert` is as much a guard as `require(msg.sender == X)`.
+    "msg.sender !=",
+    "msg.sender!=",
     "hasrole(",
     "has_role",
     "msg.sender ==",
@@ -107,7 +110,47 @@ fn value_flow(name: &str, body_lc: &str, payable: bool) -> String {
     }
 }
 
+/// Any `onlySomething` modifier is a gate, whatever the project called it.
+///
+/// WEAK JOINT THIS CLOSES (field-reported, Fluid hunt 2026-09-19): the access
+/// class was a fixed allowlist (onlyOwner/onlyRole/onlyKeeper/...), so
+/// project-specific gates — `onlyRebalancer`, `onlyMultisig`, `onlyPauseAuth` —
+/// fell through to `permissionless`. That put 74 fully-guarded functions on the
+/// impact map of a live hunt. An impact map that says "permissionless" about a
+/// guarded function is worse than no impact map: it aims the whole of Phase 2 at
+/// nothing, and Abort B stops being able to abort.
+fn gate_kind(m: &str) -> Option<Access> {
+    let ml = m.to_lowercase();
+    let namey = ml.strip_prefix("only").or_else(|| ml.strip_prefix("only_"));
+    let is_gate = namey.is_some()
+        || ml.contains("auth")
+        || ml.contains("restricted")
+        || ml.contains("permission")
+        || ml.contains("guard")
+        || ml.contains("hasrole")
+        || ml.contains("requires");
+    if !is_gate {
+        return None;
+    }
+    let owner_ish = ["owner", "admin", "gov", "multisig", "timelock", "dao"]
+        .iter()
+        .any(|k| ml.contains(k));
+    Some(if owner_ish { Access::Admin } else { Access::RoleGated })
+}
+
 fn classify_access(header_lc: &str, body_lc: &str, modifiers: &[String]) -> Access {
+    // A named gate modifier wins over every keyword list below.
+    let mut gated: Option<Access> = None;
+    for m in modifiers {
+        match gate_kind(m) {
+            Some(Access::Admin) => return Access::Admin,
+            Some(a) => gated = Some(a),
+            None => {}
+        }
+    }
+    if let Some(a) = gated {
+        return a;
+    }
     let mods_joined = modifiers.join(" ").to_lowercase();
     if ADMIN_MOD.iter().any(|m| mods_joined.contains(m) || header_lc.contains(m))
         || ADMIN_BODY.iter().any(|p| body_lc.contains(p))
@@ -117,7 +160,13 @@ fn classify_access(header_lc: &str, body_lc: &str, modifiers: &[String]) -> Acce
     if ROLE_MOD.iter().any(|m| mods_joined.contains(m) || header_lc.contains(m))
         || ROLE_BODY.iter().any(|p| body_lc.contains(p))
     {
-        return Access::RoleGated;
+        // An inline `msg.sender != TEAM_MULTISIG` guard is an admin gate, not a
+        // role gate — classify by what the body compares against, the same way
+        // `gate_kind` classifies by what the modifier is named.
+        let owner_ish = ["multisig", "owner", "admin", "governance", "governor", "timelock", "dao"]
+            .iter()
+            .any(|k| body_lc.contains(k));
+        return if owner_ish { Access::Admin } else { Access::RoleGated };
     }
     Access::Permissionless
 }
@@ -189,6 +238,80 @@ fn line_of(src: &str, byte: usize) -> usize {
     src[..byte.min(src.len())].bytes().filter(|&b| b == b'\n').count() + 1
 }
 
+/// One declared type and the byte range of its body.
+struct TypeBlock {
+    name: String,
+    is_interface: bool,
+    start: usize,
+    end: usize,
+}
+
+/// Find every `contract` / `abstract contract` / `interface` / `library` block
+/// with its brace range, so a function can be attributed to the type that
+/// actually *encloses* it rather than to the last declaration seen above it.
+///
+/// The old "last `contract ` keyword wins" rule named `Constants.rebalance` for
+/// a function defined in `FluidBufferRateHandler`, because `abstract contract
+/// Constants` also contains the substring `contract `.
+fn type_blocks(src: &str) -> Vec<TypeBlock> {
+    let bytes = src.as_bytes();
+    let mut out = Vec::new();
+    for (kw, is_interface) in [("interface ", true), ("contract ", false), ("library ", false)] {
+        let mut from = 0usize;
+        while let Some(rel) = src[from..].find(kw) {
+            let at = from + rel;
+            from = at + kw.len();
+            // must start a word (avoid `abstractcontract`, identifiers, strings)
+            if at > 0 {
+                let prev = bytes[at - 1] as char;
+                if prev.is_alphanumeric() || prev == '_' {
+                    continue;
+                }
+            }
+            let name: String = src[from..]
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if name.is_empty() {
+                continue;
+            }
+            // walk to the opening brace of the body, then match it
+            let mut i = from + name.len();
+            while i < bytes.len() && bytes[i] as char != '{' && bytes[i] as char != ';' {
+                i += 1;
+            }
+            if i >= bytes.len() || bytes[i] as char == ';' {
+                continue;
+            }
+            let start = i;
+            let mut depth = 0i32;
+            while i < bytes.len() {
+                match bytes[i] as char {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            out.push(TypeBlock { name, is_interface, start, end: i.min(bytes.len()) });
+        }
+    }
+    out
+}
+
+/// The innermost type block containing `at`.
+fn enclosing_type(blocks: &[TypeBlock], at: usize) -> Option<&TypeBlock> {
+    blocks
+        .iter()
+        .filter(|b| at > b.start && at < b.end)
+        .min_by_key(|b| b.end - b.start)
+}
+
 fn next_contract_name(src: &str, from: usize) -> Option<(usize, String)> {
     let rel = src[from..].find("contract ")?;
     let start = from + rel + "contract ".len();
@@ -208,19 +331,14 @@ pub fn scan_entries(file: &str, src: &str) -> Vec<Entry> {
     let blanked = blank_comments(src);
     let bytes = blanked.as_bytes();
     let mut out = Vec::new();
-    let mut contract = String::from("Unknown");
+    let blocks = type_blocks(&blanked);
     let mut i = 0usize;
-    if let Some((_, name)) = next_contract_name(&blanked, 0) {
-        contract = name;
-    }
 
     while let Some(rel) = blanked[i..].find("function ") {
         let kw = i + rel;
-        if let Some((at, name)) = next_contract_name(&blanked, i) {
-            if at < kw {
-                contract = name;
-            }
-        }
+        let encl = enclosing_type(&blocks, kw);
+        let contract = encl.map(|b| b.name.clone()).unwrap_or_else(|| "Unknown".into());
+        let in_interface = encl.map(|b| b.is_interface).unwrap_or(false);
         let start = kw + "function ".len();
         let mut j = start;
         let mut depth = 0i32;
@@ -241,8 +359,14 @@ pub fn scan_entries(file: &str, src: &str) -> Vec<Entry> {
             Some(e) => e,
             None => break,
         };
+        // A bodiless function is a *declaration*, not an entry point: interface
+        // members and abstract stubs describe the callee, not this contract.
+        let declaration_only = bytes[end] as char == ';';
         let header = &blanked[start..end];
         i = end + 1;
+        if declaration_only || in_interface {
+            continue;
+        }
 
         let paren = match header.find('(') {
             Some(p) => p,
@@ -308,6 +432,64 @@ pub fn scan_repo_entries(root: &std::path::Path) -> Vec<Entry> {
             .then(a.line.cmp(&b.line))
     });
     all
+}
+
+#[cfg(test)]
+mod project_gate_tests {
+    use super::*;
+
+    fn census() -> Vec<Entry> {
+        let src = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/ProjectGated.sol"),
+        )
+        .unwrap();
+        scan_entries("ProjectGated.sol", &src)
+    }
+
+    #[test]
+    fn interface_members_are_not_entry_points() {
+        // Regression, Fluid hunt 2026-09-19: bodiless interface members were
+        // counted as callable entry points on the hunted contract.
+        let e = census();
+        assert!(
+            !e.iter().any(|x| x.name == "updateFeeAndRevenueCut" || x.name == "setDexFee"),
+            "interface declarations must not appear in the census: {:?}",
+            e.iter().map(|x| &x.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn functions_are_attributed_to_the_enclosing_contract() {
+        // Regression: `abstract contract Constants` above the real contract used
+        // to claim every function below it.
+        let e = census();
+        let r = e.iter().find(|x| x.name == "rebalance").expect("rebalance missing");
+        assert_eq!(r.contract, "FluidRateHandler");
+    }
+
+    #[test]
+    fn project_specific_only_modifiers_are_gates() {
+        // Regression: onlyRebalancer/onlyMultisig are not in any allowlist, and
+        // used to classify as permissionless — which put 74 guarded functions on
+        // a live hunt's impact map.
+        let e = census();
+        let by = |n: &str| e.iter().find(|x| x.name == n).unwrap().access.clone();
+        assert_eq!(by("rebalance"), Access::RoleGated);
+        assert_eq!(by("setRate"), Access::Admin);
+        assert_eq!(by("setPauseContract"), Access::Admin, "inline msg.sender != guard");
+        assert_eq!(by("donate"), Access::Permissionless, "this one really is open");
+    }
+
+    #[test]
+    fn exactly_one_function_here_is_permissionless() {
+        let e = census();
+        let open: Vec<_> = e
+            .iter()
+            .filter(|x| x.access == Access::Permissionless)
+            .map(|x| x.name.as_str())
+            .collect();
+        assert_eq!(open, vec!["donate"]);
+    }
 }
 
 #[cfg(test)]
