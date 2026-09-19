@@ -55,6 +55,31 @@ row with `value_flow != none` → ABORT". The two-command abort the whole design
 built around could not fire, because the census it reads was wrong. 502k tokens
 bought a correct negative that the gate should have delivered for ~5k.
 
+**Follow-up the same day — the abort now fires, and is machine-enforced.** Posture
+was still returning `SEAM` on the fixed census, because it ORed the accurate
+function census with the noisy file-level count (783 "value sites" beat a census
+of 0). The census now decides, and Abort B is a subcommand with an exit code
+(`auditooor-scan gate <dir>` → exit 3) rather than a paragraph the orchestrator
+has to remember to apply. On the directory that cost 502k tokens it now prints
+ABORT and exits 3.
+
+**Census stress corpus** (`benchmark/census/run.sh`): eight directories whose
+answer was established by reading the source, run on every build. Five more
+defects fell out of it, every one of them a *false gate* — the direction that
+aborts a target worth hunting:
+
+| defect | example that exposed it |
+|---|---|
+| `returns` tuple collected as modifiers | `operate` came back with mods `["reentrancy","uint256","memVar3_"]` |
+| raw header substring-matched for "auth" | a return value named `authority` |
+| sender aliased into a local | `caller = _msgSender(); if (caller != authority())` (OZ `AccessManaged`) |
+| sender compared to a *parameter* or literal | `require(to == _msgSender())` (ERC3009), `if (sender == address(this))` (ERC20Wrapper) |
+| no-arg call on the left of the comparison | `if (pendingOwner() != sender)` (OZ `Ownable2Step`) |
+
+The corpus pins both directions at once: `fluid/contracts/config` must be **0%**
+permissionless and `fluid/liquidity/userModule` must be **100%** — the same repo,
+opposite answers, so a blanket fix in either direction fails the suite.
+
 Three things this establishes that no amount of design argument could:
 
 1. **The gates only work if the recon under them is true.** A wrong impact map

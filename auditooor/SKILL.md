@@ -77,6 +77,7 @@ The rest are on demand — do not run them "to be thorough", run them when a pha
 | `{scan} danger <dir>` | danger-keyword census (delegatecall, initialize, flashLoan, …) |
 | `{scan} detectors <file\|dir>` | SIG-01..06 signature/crypto, AC-01..03 access-control/init, ACC-01..04 accounting-anomaly leads |
 | `{scan} fingerprint --mechanism M --sink S --entrypoint E [--add]` | stable dedup hash + NOVEL/DUPLICATE against the local ledger |
+| `{scan} gate <dir>` | **Abort B as an exit code** (3 = ABORT). Reads the function census, not the file-level score |
 | `{scan} outcome ... \| --stats` | the outcome ledger — write it every run, aborts included |
 
 **Two limits to state plainly.** (1) `surface` is a per-file *syntactic* score: it ranks the machine-auditable classes and **cannot** see protocol-logic bugs — mis-accounted collateral, non-monotonic share price, broken economic assumptions — because those live between contracts. Those are ~89% of losses and belong to the invariant campaign and the hunters. (2) `detectors` output is LEADs with real FP risk (a trusted non-FoT token makes ACC-01 intended), never verdicts.
@@ -127,11 +128,23 @@ Write the Phase-0 prior-art findings to a file and pass `--brief`: it lands at t
 
 Read `hunt.md`. **Nothing else.** LITE writes no `source.md` at all — `focus.md` holds the top-8 by `risk_score` plus a path manifest for the rest, and the bundles already carry it. Do not glob the repo, do not read `focus.md` in the orchestrator, do not spawn anyone yet.
 
-**Abort B — before any agent spawns.** From `xray.json`:
+**Abort B — run the gate, do not eyeball the JSON.**
+
+```
+{scan} gate <dir> || exit    # exits 3 on ABORT; chain it, don't read it
+```
+
+`gate` decides from the **function-level census**, which is the only evidence that
+answers "can an unprivileged address call this". It aborts when every entry point
+is gated, and its exit code is the abort — a gate you can forget to read is not a
+gate. (On the Fluid hunt the abort was a paragraph here, the census was wrong, and
+three hunters were spent proving an impact map was fiction.) The same conditions,
+for when you need to explain the verdict:
 
 | Signal | Action |
 |---|---|
-| `posture.verdict == FORTRESS` | ABORT, retarget. A fleet at a fortress finds $0 (four of nine recorded runs died here). |
+| `posture.verdict == ABORT` | every entry point is role- or admin-gated: no unprivileged path to value |
+| `posture.verdict == FORTRESS` | ABORT, retarget. A fleet at a fortress finds $0 (four of ten recorded runs died here). |
 | no permissionless row with `value_flow != none` | ABORT — nothing to steal, nothing to pay |
 | ranked files are all audited core, no SEAM | ABORT or hand back a scope report |
 | the in-scope mechanism is already in the Phase-0 prior-art brief | ABORT — known issue |
@@ -199,8 +212,9 @@ Default is **LITE**. Everything below is a deliberate purchase.
 3. **Novelty before proof.** A candidate that matches a public disclosure or the outcome ledger is killed in Phase 3, unproven. (`references/novelty-gate.md`.)
 4. **Intended ≠ wrong.** The model is strong at *unusual*, weak at *intended*. Every engine's intent ledger and human checkpoint still apply; Auditooor adds no override.
 5. **EV can abort.** A run with no reachable value or no live program is aborted in Phase 0, before code is read.
-6. **In LITE: never read `source.md`.** Use `focus.md` and the fleet bundles only, and read a deferred file by its path when a lead points at it. LITE does not even write `source.md` — if you find yourself reaching for the whole tree, that is the run leaking. (`--full-source` exists for the rare case you truly need it; it is not the default for a reason.)
-7. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
+6. **The census is gate-critical.** Abort B is only as true as `entries`. Before trusting an abort — or a decision not to abort — on an unfamiliar guard idiom, run `benchmark/census/run.sh`. A census that calls a guarded function permissionless cannot abort; one that calls an open function guarded aborts a target worth hunting.
+7. **In LITE: never read `source.md`.** Use `focus.md` and the fleet bundles only, and read a deferred file by its path when a lead points at it. LITE does not even write `source.md` — if you find yourself reaching for the whole tree, that is the run leaking. (`--full-source` exists for the rare case you truly need it; it is not the default for a reason.)
+8. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
 
 ## Native hunt vs optional engines
 

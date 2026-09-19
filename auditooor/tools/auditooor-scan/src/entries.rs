@@ -138,7 +138,132 @@ fn gate_kind(m: &str) -> Option<Access> {
     Some(if owner_ish { Access::Admin } else { Access::RoleGated })
 }
 
-fn classify_access(header_lc: &str, body_lc: &str, modifiers: &[String]) -> Access {
+/// Detect a guard written through a sender alias.
+///
+/// `ROLE_BODY` matches the literal `msg.sender ==` / `!=` forms. OpenZeppelin —
+/// and anything using `Context` — writes the same guard as:
+///
+/// ```solidity
+/// address caller = _msgSender();
+/// if (caller != authority()) revert AccessManagedUnauthorized(caller);
+/// ```
+///
+/// Found on the census stress corpus (2026-09-19): `AccessManaged.setAuthority`
+/// censused as permissionless while being owner-gated. This resolves one level
+/// of aliasing — the local a sender was assigned to — and requires a revert on
+/// the same line, so an ordinary `_msgSender()` read (an ERC20 transfer) is not
+/// mistaken for a guard.
+/// The identifier adjacent to a comparison operator.
+///
+/// `side` is the text before (`from_right = false`) or after (`from_right = true`)
+/// the operator. Handles the no-arg call form, because `pendingOwner() != sender`
+/// / `owner() == msg.sender` is the most common guard shape in Solidity and a
+/// scanner that stops at the `)` loses the identifier entirely.
+fn adjacent_ident(side: &str, from_right: bool) -> String {
+    let ident = |it: &mut dyn Iterator<Item = char>| -> String {
+        it.take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '.').collect()
+    };
+    if from_right {
+        let mut it = side.chars().skip_while(|c| c.is_whitespace());
+        ident(&mut it)
+    } else {
+        let rev: Vec<char> = side.chars().rev().skip_while(|c| c.is_whitespace()).collect();
+        // strip a trailing `()` of a no-arg call before reading the name
+        let rest: Vec<char> = if rev.len() >= 2 && rev[0] == ')' && rev[1] == '(' {
+            rev[2..].to_vec()
+        } else {
+            rev
+        };
+        let mut it = rest.into_iter();
+        let t = ident(&mut it);
+        t.chars().rev().collect()
+    }
+}
+
+fn aliased_sender_guard(body_lc: &str, params: &[String]) -> bool {
+    let mut aliases: Vec<String> = vec!["msg.sender".into(), "_msgsender()".into()];
+    for line in body_lc.lines() {
+        if let Some(eq) = line.find('=') {
+            let rhs = &line[eq + 1..];
+            if rhs.contains("msg.sender") || rhs.contains("_msgsender()") {
+                let lhs = line[..eq].trim();
+                if let Some(name) = lhs.split_whitespace().last() {
+                    let n = name.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                    if !n.is_empty() && n != "msg" {
+                        aliases.push(n.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // The alias must be an *operand* of the comparison, not merely present on the
+    // line. `if (allowance[owner][spender] != max)` mentions `owner` and is not a
+    // sender check; over-matching it falsely gated ERC20 transferFrom and, worse,
+    // Fluid's permissionless `operate` — a false gate now aborts a good target.
+    let operand_is_alias = |side: &str, from_right: bool| -> bool {
+        let norm = |x: &str| x.replace(['(', ')'], "").trim().to_string();
+        let tok = norm(&adjacent_ident(side, from_right));
+        !tok.is_empty() && aliases.iter().any(|a| norm(a) == tok)
+    };
+
+    // A sender comparison is only an AUTHORIZATION gate when the other side is
+    // stored state (an owner, an authority, a constant). Corpus findings
+    // (2026-09-19):
+    //   ERC20Wrapper.depositFor  `if (sender == address(this)) revert` — a
+    //     sanity check; anyone may call it.
+    //   ERC3009.receiveWithAuthorization  compares the sender to a *parameter*;
+    //     an attacker simply passes their own address.
+    // Calling either a gate is a false gate, and a false gate aborts a live
+    // target that was worth hunting.
+    let not_authority = |x: &str| -> bool {
+        let t = x.replace(['(', ')'], "").trim().to_string();
+        t.is_empty()
+            || t.starts_with("address")
+            || t.starts_with('0')
+            || t.chars().all(|c| c.is_ascii_digit())
+            || params.iter().any(|p| p.to_lowercase() == t)
+    };
+    let other_side = |side: &str, from_right: bool| -> String { adjacent_ident(side, from_right) };
+    for line in body_lc.lines() {
+        let enforces = line.contains("revert") || line.contains("require(") || line.contains("if (");
+        if !enforces {
+            continue;
+        }
+        for op in ["!=", "=="] {
+            if let Some(i) = line.find(op) {
+                let (l, r) = (&line[..i], &line[i + 2..]);
+                let gate = (operand_is_alias(l, false) && !not_authority(&other_side(r, true)))
+                    || (operand_is_alias(r, true) && !not_authority(&other_side(l, false)));
+                if gate {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Identifier names of a function's own parameters — a sender compared against
+/// one of these is not an authorization gate, since the caller chooses it.
+fn param_names(header: &str) -> Vec<String> {
+    let open = match header.find('(') {
+        Some(i) => i,
+        None => return Vec::new(),
+    };
+    let close = header[open..].find(')').map(|i| open + i).unwrap_or(header.len());
+    header[open + 1..close]
+        .split(',')
+        .filter_map(|chunk| {
+            chunk
+                .split_whitespace()
+                .last()
+                .map(|t| t.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase())
+        })
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+fn classify_access(header_lc: &str, body_lc: &str, modifiers: &[String], params: &[String]) -> Access {
     // A named gate modifier wins over every keyword list below.
     let mut gated: Option<Access> = None;
     for m in modifiers {
@@ -151,14 +276,20 @@ fn classify_access(header_lc: &str, body_lc: &str, modifiers: &[String]) -> Acce
     if let Some(a) = gated {
         return a;
     }
+    // Only the extracted modifier list and the body are evidence. Substring-
+    // matching the raw header was a false-gate factory: a return value or
+    // parameter named `authority` contains "auth", and `gate` now exits non-zero
+    // on ABORT, so a false gate silently kills a good target.
+    let _ = header_lc;
     let mods_joined = modifiers.join(" ").to_lowercase();
-    if ADMIN_MOD.iter().any(|m| mods_joined.contains(m) || header_lc.contains(m))
+    if ADMIN_MOD.iter().any(|m| mods_joined.contains(m))
         || ADMIN_BODY.iter().any(|p| body_lc.contains(p))
     {
         return Access::Admin;
     }
-    if ROLE_MOD.iter().any(|m| mods_joined.contains(m) || header_lc.contains(m))
+    if ROLE_MOD.iter().any(|m| mods_joined.contains(m))
         || ROLE_BODY.iter().any(|p| body_lc.contains(p))
+        || aliased_sender_guard(body_lc, params)
     {
         // An inline `msg.sender != TEAM_MULTISIG` guard is an admin gate, not a
         // role gate — classify by what the body compares against, the same way
@@ -180,6 +311,16 @@ fn extract_modifiers(header_tail: &str) -> Vec<String> {
             continue;
         }
         let tl = t.to_lowercase();
+        // `returns` ends the modifier list. This must be checked BEFORE the skip
+        // list below, which also contains "returns" and would `continue` past it
+        // — that bug let the whole return tuple be collected as modifiers
+        // (`operate` came back with mods ["reentrancy","uint256","memVar3_"]).
+        // Harmless while modifiers only ranked attention; a false gate now, since
+        // a return value named `authority` would read as a guard and `gate`
+        // exits non-zero on ABORT.
+        if tl == "returns" {
+            break;
+        }
         if matches!(
             tl.as_str(),
             "external"
@@ -391,7 +532,8 @@ pub fn scan_entries(file: &str, src: &str) -> Vec<Entry> {
         let body = slice_body(&blanked, end);
         let body_lc = body.to_lowercase();
         let header_lc = header.to_lowercase();
-        let access = classify_access(&header_lc, &body_lc, &modifiers);
+        let params = param_names(&header_lc);
+        let access = classify_access(&header_lc, &body_lc, &modifiers, &params);
         out.push(Entry {
             file: file.to_string(),
             contract: contract.clone(),
@@ -481,6 +623,46 @@ mod project_gate_tests {
     }
 
     #[test]
+    fn returns_tuple_names_are_not_modifiers() {
+        // Regression: `returns` was in the skip list and `continue`d past the
+        // break, so the return tuple was collected as modifiers. With `gate`
+        // exiting non-zero on ABORT, a return value named `authority` would
+        // abort a perfectly good target.
+        let e = census();
+        let swap = e.iter().find(|x| x.name == "swap").expect("swap missing");
+        assert_eq!(swap.access, Access::Permissionless, "mods were {:?}", swap.modifiers);
+        assert!(
+            !swap.modifiers.iter().any(|m| m == "authority" || m == "onlyOut"),
+            "return names leaked into modifiers: {:?}",
+            swap.modifiers
+        );
+        let reb = e.iter().find(|x| x.name == "rebalance").unwrap();
+        assert_eq!(reb.modifiers, vec!["onlyRebalancer".to_string()]);
+    }
+
+    #[test]
+    fn sender_aliased_into_a_local_is_still_a_guard() {
+        // Corpus regression (OpenZeppelin AccessManaged.setAuthority): the guard
+        // is `caller = _msgSender(); if (caller != authority()) revert`.
+        let e = census();
+        let g = e.iter().find(|x| x.name == "setAuthority").unwrap();
+        assert_ne!(g.access, Access::Permissionless, "aliased sender guard missed");
+        // ...but merely reading the sender is not a guard.
+        let open = e.iter().find(|x| x.name == "selfRegister").unwrap();
+        assert_eq!(open.access, Access::Permissionless, "reading _msgSender() is not a gate");
+    }
+
+    #[test]
+    fn no_arg_call_on_the_left_of_the_comparison_is_a_guard() {
+        // Corpus regression (OpenZeppelin Ownable2Step.acceptOwnership):
+        // `if (pendingOwner() != sender) revert`. A scanner that stops at the
+        // `)` of the call loses the identifier and calls this permissionless.
+        let e = census();
+        let a = e.iter().find(|x| x.name == "acceptOwnership").unwrap();
+        assert_ne!(a.access, Access::Permissionless, "call-form guard missed");
+    }
+
+    #[test]
     fn exactly_one_function_here_is_permissionless() {
         let e = census();
         let open: Vec<_> = e
@@ -488,7 +670,7 @@ mod project_gate_tests {
             .filter(|x| x.access == Access::Permissionless)
             .map(|x| x.name.as_str())
             .collect();
-        assert_eq!(open, vec!["donate"]);
+        assert_eq!(open, vec!["donate", "swap", "selfRegister"]);
     }
 }
 

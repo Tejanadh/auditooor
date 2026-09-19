@@ -23,6 +23,9 @@ pub enum Posture {
     Fortress,
     /// Need the invariant campaign; per-file muscle will miss the 89%.
     Invariant,
+    /// Every entry point is gated. Nothing an unprivileged caller can reach, so
+    /// nothing to steal and nothing to pay. This is Abort B, as a verdict.
+    NoEntry,
 }
 
 impl Posture {
@@ -32,18 +35,43 @@ impl Posture {
             Posture::Seam => "SEAM",
             Posture::Fortress => "FORTRESS",
             Posture::Invariant => "INVARIANT",
+            Posture::NoEntry => "ABORT",
         }
     }
 }
 
+/// Decide the hunt posture.
+///
+/// `perm_entries` is the *function-level* census (was this function reachable by
+/// an unprivileged caller). `perm_value` is a *file-level syntactic* count of
+/// value-moving sites and is far noisier — on Fluid `contracts/config` it read
+/// 783 while the true count of permissionless entries was 0.
+///
+/// WEAK JOINT THIS CLOSES (field-reported, Fluid hunt 2026-09-19): posture ORed
+/// the two (`perm_value > 0 || perm_entries > 0`), so the noisy file-level count
+/// could override an accurate census of zero and return SEAM — "point the fleet
+/// here" — at a directory where every entry was multisig-gated. When the census
+/// has run, it decides; the syntactic count only ranks attention within it.
 fn classify_posture(
     tactic: &str,
     perm_value: usize,
     perm_entries: usize,
+    total_entries: usize,
     seam_n: usize,
     avg_complexity: u32,
 ) -> (Posture, String) {
-    if seam_n > 0 && (perm_value > 0 || perm_entries > 0) {
+    // The census ran and found every entry gated. Nothing else can override it:
+    // a file full of `transfer` calls behind `onlyOwner` is not an attack surface.
+    if total_entries > 0 && perm_entries == 0 {
+        return (
+            Posture::NoEntry,
+            format!(
+                "ABORT: {total_entries} mutating entry point(s), {} reachable by an unprivileged caller. Every way in is role- or admin-gated, so there is no unprivileged path to value — nothing to steal, nothing to pay. Do not spawn hunters. Retarget, or hunt the contracts that hold the roles.",
+                0
+            ),
+        );
+    }
+    if seam_n > 0 && perm_entries > 0 {
         return (
             Posture::Seam,
             "un-audited glue with reachable value — point the fleet at SEAM contracts, skip the fortress core".into(),
@@ -55,13 +83,13 @@ fn classify_posture(
             "mature core, no permissionless value, no seams — EV of a fleet here is ~0; retarget or ABORT".into(),
         );
     }
-    if tactic.starts_with("SLOPPY") && (perm_value > 0 || perm_entries > 0) {
+    if tactic.starts_with("SLOPPY") && (perm_entries > 0 || (total_entries == 0 && perm_value > 0)) {
         return (
             Posture::Hunt,
             "sloppy code + unguarded value — low-hanging AC/flow bugs first, then invariants".into(),
         );
     }
-    if perm_value > 0 || perm_entries > 0 {
+    if perm_entries > 0 || (total_entries == 0 && perm_value > 0) {
         return (
             Posture::Invariant,
             "value is reachable but the paying bugs are protocol-logic — author invariants, do not grind signatures".into(),
@@ -138,7 +166,8 @@ pub fn generate(root: &Path, top: usize) -> String {
         }
     }
 
-    let (posture, why) = classify_posture(tactic, perm_value, perm_entries, seam_n, avg_complexity);
+    let (posture, why) =
+        classify_posture(tactic, perm_value, perm_entries, entries.len(), seam_n, avg_complexity);
     let git = git_analyze(root);
     let hotspot_boost: std::collections::BTreeMap<String, u32> = git
         .hotspots

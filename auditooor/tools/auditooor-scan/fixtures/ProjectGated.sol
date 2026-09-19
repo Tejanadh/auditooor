@@ -52,3 +52,50 @@ contract FluidRateHandler is Constants, Events {
         emit LogRebalance(0, msg.value);
     }
 }
+
+// A genuinely open function whose RETURN VALUES are named like guards.
+// Must stay permissionless: a false gate here would abort a live target.
+contract OpenWithGuardyReturnNames {
+    function swap(uint256 amountIn_)
+        external
+        payable
+        returns (uint256 authority, uint256 onlyOut, address permissionedTo)
+    {
+        return (amountIn_, 0, msg.sender);
+    }
+}
+
+// OZ idiom: the sender is aliased into a local before the comparison.
+contract AliasGuarded {
+    address private _authority;
+    function _msgSender() internal view returns (address) { return msg.sender; }
+    function authority() public view returns (address) { return _authority; }
+
+    function setAuthority(address newAuthority) public virtual {
+        address caller = _msgSender();
+        if (caller != authority()) {
+            revert();
+        }
+        _authority = newAuthority;
+    }
+
+    // no guard, but reads the sender — must stay permissionless
+    function selfRegister() external {
+        address who = _msgSender();
+        _authority = who == address(0) ? _authority : _authority;
+    }
+}
+
+// The most common guard shape in Solidity: a no-arg call on the LEFT of the
+// comparison. `pendingOwner() != sender` must read as a gate.
+contract CallFormGuard {
+    address private _pending;
+    function pendingOwner() public view returns (address) { return _pending; }
+    function acceptOwnership() public virtual {
+        address sender = msg.sender;
+        if (pendingOwner() != sender) {
+            revert();
+        }
+        _pending = address(0);
+    }
+}

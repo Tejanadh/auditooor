@@ -17,7 +17,7 @@ use std::process::exit;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: auditooor-scan <detect|surface|xray|entries|fingerprint|...> ...");
+        eprintln!("usage: auditooor-scan <detect|surface|xray|pack|gate|entries|ev|novelty|harness|outcome|...> ...");
         exit(2);
     }
     match args[1].as_str() {
@@ -34,6 +34,7 @@ fn main() {
         "seams" => cmd_seams(&args[2..]),
         "outcome" => cmd_outcome(&args[2..]),
         "ev" => cmd_ev(&args[2..]),
+        "gate" => cmd_gate(&args[2..]),
         "--version" | "-V" => println!("auditooor-scan {}", env!("CARGO_PKG_VERSION")),
         other => {
             eprintln!("unknown subcommand: {other}");
@@ -415,6 +416,65 @@ fn cmd_ev(args: &[String]) {
     }
     out.push_str("\n  ]\n}");
     println!("{}", out);
+}
+
+/// Abort B, as an exit code.
+///
+/// The abort used to be a paragraph in SKILL.md that the orchestrator had to
+/// remember to apply to the right field of a JSON blob. On the Fluid hunt
+/// (2026-09-19) it did not fire and three hunters were spent proving an impact
+/// map was fiction. A gate you can forget to read is not a gate — this one exits
+/// 3 on ABORT, so a `&&`-chained pipeline stops whether or not anyone is paying
+/// attention.
+fn cmd_gate(args: &[String]) {
+    let dir = args.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str()).unwrap_or(".");
+    let json = auditooor_scan::xray::generate(Path::new(dir), 5);
+    let field = |k: &str| -> String {
+        let pat = format!("\"{k}\": ");
+        json.find(&pat)
+            .map(|i| {
+                let rest = &json[i + pat.len()..];
+                if let Some(body) = rest.strip_prefix('"') {
+                    // quoted string: read to the closing quote, honouring escapes
+                    let mut out = String::new();
+                    let mut chars = body.chars();
+                    while let Some(c) = chars.next() {
+                        match c {
+                            '\\' => out.extend(chars.next()),
+                            '"' => break,
+                            _ => out.push(c),
+                        }
+                    }
+                    out
+                } else {
+                    rest.chars()
+                        .take_while(|c| *c != ',' && *c != '\n' && *c != '}')
+                        .collect::<String>()
+                        .trim()
+                        .to_string()
+                }
+            })
+            .unwrap_or_default()
+    };
+    let verdict = field("verdict");
+    let why = field("why");
+    let perm = field("permissionless_entries");
+    let seams = field("seam_contracts");
+
+    println!("gate: {verdict}");
+    println!("  permissionless entries : {perm}");
+    println!("  seam contracts         : {seams}");
+    println!("  why                    : {why}");
+
+    match verdict.as_str() {
+        "ABORT" | "FORTRESS" => {
+            eprintln!("ABORT — do not spawn hunters on this target.");
+            exit(3);
+        }
+        _ => {
+            println!("  → proceed to Phase 2 with the posture above.");
+        }
+    }
 }
 
 fn cmd_detectors(args: &[String]) {
