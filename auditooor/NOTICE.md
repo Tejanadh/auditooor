@@ -14,3 +14,9 @@ outcome ledger.
 `references/exploit-patterns.md` and `references/hunters/money-map-agent.md`
 come from the CritFindsAudit engine (https://github.com/critfinds/critfinds-Audit-Skill,
 MIT). Danger-keyword census is the v2 Turn 2 recon, compiled into `auditooor-scan danger`.
+
+The protocol known-issues register (`auditooor-scan known`, `references/novelty-gate.md`)
+adapts the approach of J4X-Security/K.I.T (https://github.com/J4X-Security/K.I.T, MIT):
+build a structured register of a protocol's already-known findings from its real
+audit reports, then check every candidate against it before forging a PoC. The
+register schema, two-factor matcher, and CLI are an independent implementation.

@@ -63,6 +63,7 @@ Auditooor ships a compiled Rust binary at `{skill}/tools/auditooor-scan/` that d
 | `{scan} ev --cap <usd> [--audits N --age-years F --crowded --fresh-code --seam-value]` | 0 | `verdict` (ABORT/SCOPE-ONLY/PROCEED) **and `mode` (ABORT/LITE/DEEP)** — the spend decision, before any file is read |
 | `{scan} pack <dir> --out <recon> --agents {hunters}` | 1 | the whole recon pack. **Defaults to LITE sizing**: 3 headline bundles, top-8 files by `risk_score` inlined, everything else a read-on-demand manifest. `--deep` = every role + every file. `--roles a,b,c\|all`, `--focus N` to tune. |
 | `{scan} novelty --protocol P --mechanism M --sink S` | 0 and 3 | the prior-art query set. Run it in Phase 0 as a briefing, not just in Phase 3 as a gate. |
+| `{scan} known build/check/brief --protocol P` | 0 and 3 | the protocol's **known-issues register** (K.I.T-style): extract prior findings from its audit reports once, then every candidate is checked against them. `check` exits 3 on a duplicate. This is the pillar that got the Cork run killed *after* the PoC — now it dies before. |
 | `{scan} harness <file> [--system \| --fork --address <live> --rpc-env <ENV>] --out <test>` | 4 | Foundry invariant suite (discovery) or the Immunefi fork shape (submission) |
 
 The rest are on demand — do not run them "to be thorough", run them when a phase asks:
@@ -116,7 +117,15 @@ Resolve the target to a concrete file set **and a bounty program** (max payout, 
 
 Print `EV: <verdict> / MODE: <mode>` and stop here on `ABORT` or `SCOPE-ONLY`. The `mode` field is binding: `LITE` means three hunters, not fifteen. The user typing `DEEP` overrides it; nothing else does.
 
-Run the novelty queries **now**, as a *briefing*, and put known issues + prior-audit findings into the hunt brief. Every known class killed here is a hunter that never chases it and a PoC never forged. `references/impact-model.md#ev-precheck`, `references/novelty-gate.md`.
+Run the novelty queries **now**, as a *briefing*. Then build the protocol's known-issues register from its audit reports and emit the brief:
+
+```
+# for each audit report / contest / known-issues list, extract findings into the register:
+{scan} known add --protocol P --title "..." --root-cause "..." --surface "C.fn" --mechanism M --sink S --source "firm date"
+{scan} known brief --protocol P --out <p0-brief.md>      # feeds pack --brief
+```
+
+Every known class captured here is a hunter that never chases it and a PoC never forged. `references/impact-model.md#ev-precheck`, `references/novelty-gate.md`.
 
 ### Phase 1 — Recon pack (one command) + Abort B
 ```
@@ -172,7 +181,13 @@ A candidate that cannot be tied to a line on the impact map is a code flaw, not 
 **Escalation is the user's call.** If LITE produced an impact-mapped candidate, print what DEEP would add and the `ev` numbers, then stop. Never auto-escalate.
 
 ### Phase 3 — Novelty gate (before PoC)
-Half of this was already paid for in Phase 0 — **do not buy it twice.** A candidate whose class is in the Phase-0 brief is already dead (it should have died in the hunter; if one reaches here, kill it and note the leak). Run the world-search **only** for mechanisms the Phase-0 brief did not cover, and mark the rest `novelty: covered-by-phase-0-brief`. For each survivor: (1) local self-dedup via `{scan} fingerprint` against the ledger — `DUPLICATE` kills it; (2) world-novelty — run every `{scan} novelty` query through the runtime's web search plus the manual checks (program known-issues, prior audits, changelog, fork-inheritance). Any hit → `DEAD-DUP`, unproven. `fingerprint --add` on a submitted finding. `references/novelty-gate.md`.
+Half of this was already paid for in Phase 0 — **do not buy it twice.** For each survivor, in order:
+
+1. `{scan} known check --protocol P --mechanism M --sink S --root-cause "..." --surface "C.fn"` — matches the candidate against the protocol's own prior findings. `KNOWN` (exit 3) → DEAD-DUP, kill it unproven. `REVIEW` → read the cited report before proving. This is the check that would have saved the Cork PoC.
+2. `{scan} fingerprint` against the local ledger — self-dedup.
+3. World-search (`{scan} novelty`) **only** for mechanisms the Phase-0 brief did not cover; mark the rest `novelty: covered-by-phase-0-brief`.
+
+A candidate that survived to a proven, submitted finding gets `known add`ed so the next run against this protocol dedups it for free. For each survivor: (1) local self-dedup via `{scan} fingerprint` against the ledger — `DUPLICATE` kills it; (2) world-novelty — run every `{scan} novelty` query through the runtime's web search plus the manual checks (program known-issues, prior audits, changelog, fork-inheritance). Any hit → `DEAD-DUP`, unproven. `fingerprint --add` on a submitted finding. `references/novelty-gate.md`.
 
 ### Phase 4 — Unified proof standard
 `{scan} harness` + Foundry. The shrunk sequence is the PoC seed; `harness --fork` is the Immunefi shape. Same bar on every chain: executes, moves or locks value, minimal. No PoC → LEAD, never a finding. `references/proof-standard.md`.

@@ -10,6 +10,25 @@ the stack found and fully PoC'd a real bug, then killed it as known-issue #213
 `redeemEarlyLv` DoS" was waste, and the kill was sitting in the program's own
 known-issues list the whole time.
 
+### The protocol known-issues register (`{scan} known`) — the layer that kills duplicates cheaply
+
+`fingerprint` is self-dedup; the corpus is global classes; neither knows that
+*this* protocol's last audit already reported *this* bug. The register closes
+that. Adapted from J4X-Security/K.I.T (MIT):
+
+1. **Build once per protocol** (Phase 0): read every audit report, contest, and
+   known-issues list, and `known add` each finding — keyed by root cause, surface,
+   mechanism, sink, impact. The LLM does the extraction; the binary stores it.
+2. **Check every candidate** (Phase 3, before any PoC): `known check` scores the
+   candidate against the register on two factors (identifier overlap AND
+   root-cause vocabulary). `KNOWN` exits 3 — kill it. This is precisely the step
+   that was missing when the Cork run forged a full PoC for known-issue #213.
+3. **Feed it forward:** a submitted finding gets `known add`ed, so the register
+   grows into an asset that makes every future run against that protocol cheaper.
+
+`known brief` renders the register as the "DO NOT CHASE" block that `pack --brief`
+bakes into every hunter bundle — so a known class dies in the hunter, not in Phase 3.
+
 So in **Phase 0**, before any code is read:
 
 1. `{scan} novelty --protocol P --mechanism <the protocol's top mechanism> --sink <its main value sink>` and run the queries.

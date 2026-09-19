@@ -17,7 +17,7 @@ use std::process::exit;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: auditooor-scan <detect|surface|xray|pack|gate|entries|ev|novelty|harness|outcome|...> ...");
+        eprintln!("usage: auditooor-scan <detect|surface|xray|pack|gate|entries|ev|novelty|known|harness|outcome|...> ...");
         exit(2);
     }
     match args[1].as_str() {
@@ -35,6 +35,7 @@ fn main() {
         "outcome" => cmd_outcome(&args[2..]),
         "ev" => cmd_ev(&args[2..]),
         "gate" => cmd_gate(&args[2..]),
+        "known" => cmd_known(&args[2..]),
         "--version" | "-V" => println!("auditooor-scan {}", env!("CARGO_PKG_VERSION")),
         other => {
             eprintln!("unknown subcommand: {other}");
@@ -474,6 +475,80 @@ fn cmd_gate(args: &[String]) {
         }
         _ => {
             println!("  → proceed to Phase 2 with the posture above.");
+        }
+    }
+}
+
+
+/// Protocol known-issues register (K.I.T-style). The LLM extracts findings from
+/// the program's audit reports; this stores and matches them so a duplicate dies
+/// before a PoC is forged — the pillar that got the Cork run killed post-PoC.
+fn cmd_known(args: &[String]) {
+    use auditooor_scan::known::{add, brief, check, load, KnownFinding};
+    let ledger = flag(args, "--ledger")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+            std::path::Path::new(&home).join(".claude").join("auditooor")
+        });
+    let sub = args.first().map(|s| s.as_str()).unwrap_or("");
+    let protocol = flag(args, "--protocol").unwrap_or("").to_string();
+    match sub {
+        "add" => {
+            if protocol.is_empty() || flag(args, "--title").is_none() {
+                eprintln!("known add --protocol P --title T [--root-cause .. --surface .. --mechanism .. --sink .. --impact .. --source .. --id ..]");
+                exit(2);
+            }
+            let f = KnownFinding {
+                id: flag(args, "--id").map(str::to_string).unwrap_or_else(|| format!("{}-{}", protocol, load(&ledger, &protocol).len() + 1)),
+                protocol: protocol.clone(),
+                title: flag(args, "--title").unwrap_or("").into(),
+                root_cause: flag(args, "--root-cause").unwrap_or("").into(),
+                surface: flag(args, "--surface").unwrap_or("").into(),
+                mechanism: flag(args, "--mechanism").unwrap_or("").into(),
+                sink: flag(args, "--sink").unwrap_or("").into(),
+                impact: flag(args, "--impact").unwrap_or("").into(),
+                source: flag(args, "--source").unwrap_or("").into(),
+            };
+            match add(&ledger, &f) {
+                Ok(()) => println!("registered [{}] {} -> {}", f.id, f.title, auditooor_scan::known::register_path(&ledger, &protocol).display()),
+                Err(e) => { eprintln!("cannot write register: {e}"); exit(1); }
+            }
+        }
+        "check" => {
+            if protocol.is_empty() {
+                eprintln!("known check --protocol P --mechanism M --sink S --root-cause \"..\" [--surface ..]");
+                exit(2);
+            }
+            let reg = load(&ledger, &protocol);
+            let r = check(
+                &reg,
+                flag(args, "--mechanism").unwrap_or(""),
+                flag(args, "--sink").unwrap_or(""),
+                flag(args, "--root-cause").unwrap_or(""),
+                flag(args, "--surface").unwrap_or(""),
+            );
+            println!("{{\n  \"verdict\": \"{}\",\n  \"score\": {:.2},\n  \"register_size\": {},\n  \"why\": \"{}\"\n}}",
+                r.verdict.as_str(), r.score, reg.len(), auditooor_scan::json_escape(&r.why));
+            // KNOWN exits non-zero so a pipeline can kill the candidate.
+            if r.verdict == auditooor_scan::known::Verdict::Known { exit(3); }
+        }
+        "brief" => {
+            if protocol.is_empty() { eprintln!("known brief --protocol P [--out FILE]"); exit(2); }
+            let reg = load(&ledger, &protocol);
+            let b = brief(&reg, &protocol);
+            if let Some(out) = flag(args, "--out") {
+                if let Err(e) = std::fs::write(out, &b) { eprintln!("cannot write {out}: {e}"); exit(1); }
+                eprintln!("wrote brief -> {out} ({} known findings)", reg.len());
+            }
+            print!("{b}");
+        }
+        _ => {
+            eprintln!("usage: auditooor-scan known <add|check|brief> --protocol P ...");
+            eprintln!("  add   — register a prior finding (LLM extracts from audit reports)");
+            eprintln!("  check — match a candidate against the register; exits 3 on KNOWN");
+            eprintln!("  brief — emit the DO-NOT-CHASE brief for `pack --brief`");
+            exit(2);
         }
     }
 }
