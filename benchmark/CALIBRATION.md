@@ -22,9 +22,53 @@ top of this file until it changes.
 | 7 | Snowman | 2026-09 | First Flight (EXP) | 12-agent fleet **and** a solo pass | 9 findings; only L-3 came from the fleet | n/a (EXP-only) |
 | 8 | MyCut | 2026-09 | First Flight (EXP) | solo, 2 rounds | 3H / 3M / 8L, 13 PoCs | n/a (EXP-only) |
 | 9 | Alpenglow | 2026-09 | contest → standing program | scope + DIFF hunt | competition was closed (P=0); pivoted; every lead died on per-rank dedup / 20% byzantine bound | no |
+| 10 | Fluid (Instadapp), `contracts/config` | 2026-09-19 | bounty ($500k) | **LITE, 3 agents, 502k tokens** | no finding; 3 lanes independently concluded every entry is `onlyRebalancer`/multisig-gated | no — every candidate needs a trusted role (§3) |
 
-**Totals:** 9 runs · 1 real bug found and proven autonomously · 0 novel payable
+**Totals:** 10 runs · 1 real bug found and proven autonomously · 0 novel payable
 bugs · **$0 paid** · 2 EXP contest runs with graded findings.
+
+## Run 10 is the first with real cost data, and the first to indict the tool
+
+The first LITE run on a live program, and the first row with a measured token
+cost rather than a pack-size argument:
+
+| | |
+|---|---|
+| Target | Instadapp **Fluid**, `contracts/config` (26 files, 5.7k lines) — the auth/handler glue around a 4×-audited core |
+| Phase 0 | `PROCEED` · `mode: LITE` · EV $7,326 · p 0.0151 · fortress 9.5 |
+| Phase 2 | 3 specialists: access-control, periphery, money-map (isolated) |
+| **Fleet cost** | **502,193 tokens** (144k + 175k + 183k) |
+| Result | **no finding**; 6 LEADs, all trusted-role-gated; 14 hypotheses killed with quoted counter-evidence |
+
+**The finding that matters is about auditooor, not Fluid.** The entry census
+handed Phase 2 an impact map of **74 "permissionless" functions**. All three
+hunters independently found the same thing: every one is guarded
+(`onlyRebalancer`, `TEAM_MULTISIG`, `onlyPauseAuth`). Three defects, confirmed
+against source and fixed in `c6b1853`: a fixed allowlist of gate modifiers that
+missed every project-specific one, interface members counted as entry points,
+and functions attributed to the last `contract` keyword above them rather than
+the enclosing type. Post-fix the same directory censuses as **74 entries, 0
+permissionless**.
+
+That means **Abort B would have killed this run at Phase 1** — "no permissionless
+row with `value_flow != none` → ABORT". The two-command abort the whole design is
+built around could not fire, because the census it reads was wrong. 502k tokens
+bought a correct negative that the gate should have delivered for ~5k.
+
+Three things this establishes that no amount of design argument could:
+
+1. **The gates only work if the recon under them is true.** A wrong impact map
+   does not degrade the run, it disables the abort. That makes census accuracy a
+   *gate-critical* property, not a nice-to-have ranking heuristic.
+2. **A cost number at last.** 3 agents ≈ 500k tokens on a 5.7k-line directory.
+   Extrapolating the same per-agent cost, DEEP's 15 agents would be ~2.5M — so
+   LITE's saving is real and roughly the 5× the design claimed, now measured on
+   one real target instead of argued from bundle sizes.
+3. **Convergent negatives are cheap and trustworthy.** Three lanes from three
+   different starting points (guards, automation inputs, books) reached the same
+   conclusion, and the money-map lane corroborated the periphery lane's
+   `withdrawLimitAuth` observation without seeing it. When lanes converge on
+   *nothing*, that is a strong signal to stop — not a reason to buy DEEP.
 
 ## What the record actually says
 
@@ -42,8 +86,10 @@ the direct evidence behind **LITE as the default** and behind `LITE_REACH = 0.55
 in `ev.rs` — if anything that constant is generous to DEEP.
 
 **Fortresses are the dominant failure.** Runs 1, 3, 4, 6 were all mature,
-multiply-audited code. Four of nine runs were spent on targets the EV gate would
-now abort in Phase 0 for the price of two commands.
+multiply-audited code. Four of ten runs were spent on targets the EV gate would
+now abort in Phase 0 for the price of two commands. Run 10 adds the variant that
+hurts more: a target the *Phase 1* gate should have aborted and could not,
+because the recon feeding it was wrong.
 
 **Novelty has to come earlier.** Run 5 forged a full PoC before the duplicate was
 discovered. Everything after the moment the bug class was identifiable was waste.
