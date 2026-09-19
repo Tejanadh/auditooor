@@ -386,7 +386,7 @@ fn cmd_ev(args: &[String]) {
         flag(args, name).and_then(|s| s.parse::<f64>().ok()).unwrap_or(default)
     };
     if flag(args, "--cap").is_none() {
-        eprintln!("ev requires --cap <max_bounty_usd> [--audits N] [--age-years F] [--crowded] [--fresh-code] [--seam-value] [--fleet-cost USD] [--lite-cost USD]");
+        eprintln!("ev requires --cap <max_bounty_usd> [--audits N] [--age-years F] [--crowded] [--fresh-code] [--seam-value] [--fleet-cost USD] [--lite-cost USD] [--nsloc N]");
         eprintln!("  prints verdict (ABORT/SCOPE-ONLY/PROCEED) and mode (ABORT/LITE/DEEP) — mode is what you spend");
         exit(2);
     }
@@ -399,6 +399,7 @@ fn cmd_ev(args: &[String]) {
         seam_value: has_flag(args, "--seam-value"),
         fleet_cost_usd: num("--fleet-cost", 200.0),
         lite_cost_usd: flag(args, "--lite-cost").and_then(|s| s.parse::<f64>().ok()),
+        target_nsloc: flag(args, "--nsloc").and_then(|s| s.parse::<u32>().ok()),
     };
     let res = evaluate(&inp);
     let mut out = String::from("{\n");

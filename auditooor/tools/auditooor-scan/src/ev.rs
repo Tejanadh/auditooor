@@ -43,6 +43,9 @@ pub struct EvInputs {
     pub fleet_cost_usd: f64,
     /// Cost of the LITE pipeline. `None` = `fleet_cost_usd * LITE_COST_FRACTION`.
     pub lite_cost_usd: Option<f64>,
+    /// In-scope source lines, when known. A fleet cannot out-read three focused
+    /// hunters on a small target — it just re-reads the same code.
+    pub target_nsloc: Option<u32>,
 }
 
 /// Which pipeline the run should actually buy. The verdict says "is this target
@@ -93,6 +96,15 @@ const LITE_REACH: f64 = 0.55;
 
 /// Default dollar-equivalent cost of a LITE run relative to a fleet run.
 pub const LITE_COST_FRACTION: f64 = 0.12;
+
+/// Below this many in-scope lines, DEEP buys nothing: fifteen agents and three
+/// agents read the same files, so the fleet's extra "reach" is fifteen opinions
+/// on one small surface rather than more surface covered.
+///
+/// Field-reported (Fluid periphery, 2026-09-19): the gate returned `mode: DEEP`
+/// on a 2k-line scope purely because the cap was $500k and the code was fresh.
+/// Cap size is not scope size.
+pub const DEEP_MIN_NSLOC: u32 = 3_000;
 
 /// Above this fortress score the code is swept: no cap is large enough to make a
 /// full fleet the right purchase, because the marginal bugs it would find have
@@ -176,8 +188,17 @@ pub fn evaluate(inp: &EvInputs) -> EvResult {
     // full fleet has historically found nothing (benchmark/CALIBRATION.md).
     // Caught by dogfooding v0.8 target selection.
     let swept = fortress_score >= FORTRESS_DEEP_CEILING;
+    let too_small = inp.target_nsloc.map(|n| n < DEEP_MIN_NSLOC).unwrap_or(false);
     let mode = match verdict {
         Verdict::Abort => Mode::Abort,
+        _ if too_small => {
+            r.push(format!(
+                "LITE forced: {} in-scope lines (< {}). A fleet re-reads the same files — buy depth with a bigger scope, not more agents.",
+                inp.target_nsloc.unwrap_or(0),
+                DEEP_MIN_NSLOC
+            ));
+            Mode::Lite
+        }
         _ if swept => {
             r.push(format!(
                 "LITE forced: fortress_score {:.1} >= {:.1} — picked-clean code, a fleet adds reach nobody can use.",
@@ -219,13 +240,15 @@ mod tests {
 
     fn base() -> EvInputs {
         EvInputs { cap_usd: 100_000.0, audits: 0, age_years: 0.0, crowded: false,
-            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None }
+            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None,
+            target_nsloc: None }
     }
 
     #[test]
     fn charm_fortress_aborts() {
         let inp = EvInputs { cap_usd: 10_000.0, audits: 4, age_years: 5.0, crowded: true,
-            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None };
+            fresh_code: false, seam_value: false, fleet_cost_usd: 200.0, lite_cost_usd: None,
+            target_nsloc: None };
         assert_eq!(evaluate(&inp).verdict, Verdict::Abort);
         assert_eq!(evaluate(&inp).mode, Mode::Abort);
     }
@@ -267,6 +290,17 @@ mod tests {
     fn deep_is_earned_only_by_a_big_uncrowded_cap() {
         let inp = EvInputs { cap_usd: 1_000_000.0, fresh_code: true, seam_value: true, ..base() };
         assert_eq!(evaluate(&inp).mode, Mode::Deep);
+    }
+
+    #[test]
+    fn a_small_scope_cannot_buy_a_fleet() {
+        // Fluid periphery: $500k cap, fresh, un-audited seam — EV said DEEP on a
+        // ~2k-line scope. Cap size is not scope size.
+        let big = EvInputs { cap_usd: 500_000.0, audits: 1, age_years: 1.0, crowded: true,
+            seam_value: true, target_nsloc: Some(30_000), ..base() };
+        assert_eq!(evaluate(&big).mode, Mode::Deep);
+        let small = EvInputs { target_nsloc: Some(2_000), ..big };
+        assert_eq!(evaluate(&small).mode, Mode::Lite);
     }
 
     #[test]
