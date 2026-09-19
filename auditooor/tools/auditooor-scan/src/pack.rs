@@ -267,6 +267,17 @@ fn write_fleet_bundles(
     };
     let fleet_dir = out.join("fleet");
     fs::create_dir_all(&fleet_dir)?;
+    // Clear stale bundles from an earlier pack of the same directory. Leaving
+    // them turns a 3-bundle LITE pack into a 5-bundle one on disk, and the
+    // "3 agents max" rule is only real if the files agree with it.
+    if let Ok(existing) = fs::read_dir(&fleet_dir) {
+        for e in existing.flatten() {
+            let n = e.file_name().to_string_lossy().to_string();
+            if n.ends_with("-bundle.md") {
+                let _ = fs::remove_file(e.path());
+            }
+        }
+    }
     // Cap source inline so a big protocol doesn't explode across N copies.
     let inline = if source.len() < opts.inline_cap {
         source
@@ -379,6 +390,11 @@ mod tests {
         write_pack(&root, &out, &json, Some(&agents), &opts).unwrap();
         let b = fs::read_to_string(out.join("fleet/money-map-bundle.md")).unwrap();
         assert!(b.contains("DO NOT CHASE"));
+        // A re-pack with a different role set must not leave the old bundles.
+        let opts2 = PackOpts { roles: Some(vec!["periphery".into()]), ..PackOpts::default() };
+        write_pack(&root, &out, &json, Some(&agents), &opts2).unwrap();
+        assert!(!out.join("fleet/money-map-bundle.md").exists());
+        assert!(out.join("fleet/periphery-bundle.md").is_file());
         assert!(b.contains("first-depositor inflation"));
         assert!(!b.contains("## SOP"));
         let _ = fs::remove_dir_all(&out);

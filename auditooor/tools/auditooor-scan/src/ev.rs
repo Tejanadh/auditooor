@@ -94,6 +94,11 @@ const LITE_REACH: f64 = 0.55;
 /// Default dollar-equivalent cost of a LITE run relative to a fleet run.
 pub const LITE_COST_FRACTION: f64 = 0.12;
 
+/// Above this fortress score the code is swept: no cap is large enough to make a
+/// full fleet the right purchase, because the marginal bugs it would find have
+/// already been found by the audits that produced the score.
+pub const FORTRESS_DEEP_CEILING: f64 = 6.0;
+
 pub fn evaluate(inp: &EvInputs) -> EvResult {
     let mut r: Vec<String> = Vec::new();
     let mut p = P_BASE;
@@ -165,8 +170,21 @@ pub fn evaluate(inp: &EvInputs) -> EvResult {
     // marginal cost. Anything else is LITE: same gates, a fraction of the burn.
     let marginal_gain = inp.cap_usd * (p - p_lite);
     let marginal_cost = (inp.fleet_cost_usd - lite_cost).max(1.0);
+    // A fleet only pays on code that has not already been swept. Dollars alone
+    // are not enough: a $250k cap on a 4x-audited, crowded, 2-year-old core
+    // clears any marginal-dollar test while being exactly the profile where a
+    // full fleet has historically found nothing (benchmark/CALIBRATION.md).
+    // Caught by dogfooding v0.8 target selection.
+    let swept = fortress_score >= FORTRESS_DEEP_CEILING;
     let mode = match verdict {
         Verdict::Abort => Mode::Abort,
+        _ if swept => {
+            r.push(format!(
+                "LITE forced: fortress_score {:.1} >= {:.1} — picked-clean code, a fleet adds reach nobody can use.",
+                fortress_score, FORTRESS_DEEP_CEILING
+            ));
+            Mode::Lite
+        }
         _ if marginal_gain > 3.0 * marginal_cost && verdict == Verdict::Proceed => {
             r.push(format!(
                 "DEEP earned: marginal reach ${:.0} > 3x marginal cost ${:.0}.",
@@ -233,6 +251,16 @@ mod tests {
         // reach is worth less than the tokens it costs.
         let inp = EvInputs { cap_usd: 100_000.0, audits: 4, age_years: 1.5, crowded: true, ..base() };
         assert_eq!(evaluate(&inp).mode, Mode::Lite);
+    }
+
+    #[test]
+    fn a_huge_cap_does_not_buy_a_fleet_on_swept_code() {
+        // $3M cap, 5 audits, 2y live, crowded: EV is real, but this is exactly
+        // the profile where fleets have found nothing. LITE, not DEEP.
+        let inp = EvInputs { cap_usd: 3_000_000.0, audits: 5, age_years: 2.0, crowded: true, ..base() };
+        let res = evaluate(&inp);
+        assert_eq!(res.verdict, Verdict::Proceed);
+        assert_eq!(res.mode, Mode::Lite);
     }
 
     #[test]
