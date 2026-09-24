@@ -6,6 +6,8 @@
 
 `/auditooor XRAY` is the cheap pass: decide *whether* and *where* to hunt before a fleet or a PoC. It is not a contest-prep report and it does not emit findings.
 
+Deploy scripts are in scope. `script/`, `deploy/`, and `*.s.sol` set constructor arguments, hand over ownership, and seed state. `test/`, `*.t.sol`, mocks, interfaces, and `broadcast/` stay out.
+
 Run once:
 
 ```

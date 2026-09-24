@@ -32,6 +32,8 @@ pub struct PackOpts {
     pub include_sop: bool,
     /// Phase-0 prior-art brief, prepended to every bundle as "do not chase".
     pub brief: Option<String>,
+    /// Loop memory: known findings from earlier passes, appended last.
+    pub known: Option<String>,
 }
 
 impl Default for PackOpts {
@@ -44,6 +46,7 @@ impl Default for PackOpts {
             write_full_source: false,
             include_sop: false,
             brief: None,
+            known: None,
         }
     }
 }
@@ -58,6 +61,7 @@ impl PackOpts {
             write_full_source: true,
             include_sop: true,
             brief: None,
+            known: None,
         }
     }
 }
@@ -260,6 +264,9 @@ fn write_fleet_bundles(
     };
     let shared = read_if(&agents.join("shared-rules.md")).unwrap_or_default();
     let bounty = read_if(&agents.join("bounty-rules.md")).unwrap_or_default();
+    let language = read_if(&parent.join("report-language.md"))
+        .or_else(|| read_if(&agents.join("report-language.md")))
+        .unwrap_or_default();
     let mut n = 0usize;
     let dir = match fs::read_dir(agents) {
         Ok(d) => d,
@@ -318,6 +325,19 @@ before you write it down: it pays zero and a PoC for it is pure waste.\n\n");
         b.push_str(&shared);
         b.push_str("\n## Bounty rules (override shared-rules where they conflict)\n\n");
         b.push_str(&bounty);
+        if !language.is_empty() {
+            b.push_str("\n## Report language\n\n");
+            b.push_str(&language);
+        }
+        if let Some(known) = &opts.known {
+            if !known.trim().is_empty() {
+                b.push_str("\n\n");
+                b.push_str(known);
+                if !known.ends_with('\n') {
+                    b.push('\n');
+                }
+            }
+        }
         let out_name = name.replace("-agent.md", "-bundle.md");
         fs::write(fleet_dir.join(&out_name), b)?;
         n += 1;
@@ -397,6 +417,30 @@ mod tests {
         assert!(out.join("fleet/periphery-bundle.md").is_file());
         assert!(b.contains("first-depositor inflation"));
         assert!(!b.contains("## SOP"));
+        assert!(b.contains("Simplified Technical English"), "report language must ride in every bundle");
+        let _ = fs::remove_dir_all(&out);
+    }
+
+    #[test]
+    fn known_findings_are_appended_last() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let agents = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../references/hunters");
+        if !agents.is_dir() {
+            return;
+        }
+        let out = std::env::temp_dir().join(format!("auditooor-known-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&out);
+        let json = crate::xray::generate(&root, 5);
+        let opts = PackOpts {
+            known: Some("# Known findings — ground already walked\n\n## Vault.withdraw\n\n- `zero-abort` — FINDING\n".into()),
+            ..PackOpts::default()
+        };
+        write_pack(&root, &out, &json, Some(&agents), &opts).unwrap();
+        let b = fs::read_to_string(out.join("fleet/money-map-bundle.md")).unwrap();
+        let lang = b.find("## Report language").expect("language section");
+        let known = b.find("## Vault.withdraw").expect("known section");
+        assert!(known > lang);
+        assert!(b.contains("zero-abort"));
         let _ = fs::remove_dir_all(&out);
     }
 }

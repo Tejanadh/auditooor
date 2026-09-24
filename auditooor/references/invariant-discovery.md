@@ -50,6 +50,22 @@ forge test --match-path <test> -vvv
 
 A break is a **candidate**. Foundry's shrinker output is the PoC seed.
 
+## Step 4b — Medusa or Echidna, when the binary is actually there
+
+Foundry remains the default. If `medusa` is on PATH, run one coverage campaign against the harness before you call the suite done (`medusa fuzz`, about 300 seconds, or the project's own `medusa.json` if it has one). If branch coverage on the money contracts is still thin, fix handlers, clamping, or seed balances and rerun. Cap at 3 cycles, then proceed with the gaps written down.
+
+If `echidna` is on PATH and `medusa` is not, one `echidna` campaign is enough. Do not run both at once.
+
+For each violated property, keep the **shortest** call sequence and replay it as a Foundry test under `<recon>/poc/`:
+
+- advance `vm.roll` / `vm.warp` by the delays in the sequence
+- a global `property_*` that returns bool: replay, then `assertFalse(property_x())` — the test passes when the property breaks
+- an assertion inside a handler: wrap the violating call in `try/catch` so the test passes when the assert fires
+
+A violated `SHOULD-HOLD` property is a candidate for Phase 5 of this file. A violated `EXPLORATORY` property is a lead until intent is checked. A sequence that does not replay is a harness bug, not a protocol bug.
+
+If neither fuzzer is installed, say so in one line and stay on the Foundry shrink. Do not claim a campaign you did not run.
+
 ## Step 5 — gates, then fork PoC
 
 Same gates as any lead (`impact-model.md`, `novelty-gate.md`, `proof-standard.md`):
@@ -65,4 +81,4 @@ No live RPC → stop at the shrunk Foundry sequence and say so. Do not submit a 
 1. Five discovery agents, one synthesizer. Not 1–2 generic "write invariants" agents.
 2. Properties that cannot be falsified by a call sequence are not properties.
 3. Coverage theatre is not a goal. A 40% harness that hits the money pair beats a 90% harness that never withdraws.
-4. Do not require Echidna or Medusa. Foundry invariant + shrink is the default; other fuzzers are optional if already in the repo.
+4. Foundry invariant + shrink is the default. If `medusa` or `echidna` is already installed, Step 4b is mandatory. Do not stop a hunt to install one.

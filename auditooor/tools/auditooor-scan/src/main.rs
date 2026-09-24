@@ -142,15 +142,25 @@ fn pack_opts(args: &[String]) -> auditooor_scan::pack::PackOpts {
             }
         }
     }
+    if let Some(kf) = flag(args, "--known") {
+        match std::fs::read_to_string(kf) {
+            Ok(t) => opts.known = Some(t),
+            Err(e) => {
+                eprintln!("cannot read --known {kf}: {e}");
+                exit(2);
+            }
+        }
+    }
     opts
 }
 
 fn cmd_pack(args: &[String]) {
     if !has_flag(args, "--out") {
-        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents DIR] [--deep] [--roles a,b,c|all] [--focus N] [--brief FILE] [--full-source]");
+        eprintln!("usage: auditooor-scan pack <dir> --out <recon-dir> [--agents DIR] [--deep] [--roles a,b,c|all] [--focus N] [--brief FILE] [--known FILE] [--full-source]");
         eprintln!("  default (LITE): 3 headline bundles, top-8 focus set inlined as focus.md, rest a path manifest.");
         eprintln!("  LITE writes NO source.md on purpose — the whole tree on disk is a file the orchestrator wanders into.");
         eprintln!("  --brief FILE: Phase-0 prior-art brief, prepended to every bundle as \"already known, do not chase\".");
+        eprintln!("  --known FILE: loop memory, appended last. Pass 2+ only. See references/loop-mode.md.");
         exit(2);
     }
     cmd_xray(args);

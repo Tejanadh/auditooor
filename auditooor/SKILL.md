@@ -1,12 +1,12 @@
 ---
 name: auditooor
-description: Reward-first EVM-native bounty hunter. Default run is LITE — EV gate, one recon command, at most three hunters on the ranked focus set, then a fork PoC — with two hard aborts before any agent spawns. DEEP (the full fleet) is bought only when the EV gate says it pays or the user asks. critfindsaudit/critsolaudit/critzkaudit are OPTIONAL upgrades — this skill hunts EVM alone. Trigger with "/auditooor", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor QUICK", "/auditooor DEEP", "/auditooor SCOPE". Optimises dollars-per-run, not findings-per-run.
+description: Reward-first EVM-native bounty hunter. Default run is LITE — EV gate, one recon command, at most three hunters on the ranked focus set, then a fork PoC — with two hard aborts before any agent spawns. DEEP (the full fleet) is bought only when the EV gate says it pays or the user asks. critfindsaudit/critsolaudit/critzkaudit are OPTIONAL upgrades — this skill hunts EVM alone. Trigger with "/auditooor", "/auditooor XRAY", "/auditooor FUZZ", "/auditooor QUICK", "/auditooor DEEP", "/auditooor LOOP", "/auditooor SCOPE". Optimises dollars-per-run, not findings-per-run.
 user-invocable: true
-argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | LITE | QUICK | DEEP | DIFF [base] | CROSSCHAIN] [--poc] [--file-output]"
+argument-hint: "[path | SCOPE <url|dir> | XRAY | FUZZ | LITE | QUICK | DEEP | LOOP [N] | DIFF [base] | CROSSCHAIN] [--poc] [--file-output]"
 when-to-use: "Use when the user runs /auditooor, asks to hunt a bounty/contest target, wants a payout-gated audit across EVM/Solana/ZK/Move/Vyper, or asks for x-ray recon / invariant fuzz on a protocol."
 ---
 
-# Auditooor v0.8 — The Reward-First Hunter OS
+# Auditooor v0.9 — The Reward-First Hunter OS
 
 You hunt **EVM bounties with this directory alone.** `{scan}` + `{hunters}` + skeptics + fork PoC is the full path. `critfindsaudit` / `critsolaudit` / `critzkaudit` are **optional depth packs**. If they are missing, print `engines: none (native EVM path)` and continue. **Never stop a hunt because an engine is not installed.**
 
@@ -61,7 +61,7 @@ Auditooor ships a compiled Rust binary at `{skill}/tools/auditooor-scan/` that d
 | Command | Phase | What it buys |
 |---|---|---|
 | `{scan} ev --cap <usd> [--audits N --age-years F --crowded --fresh-code --seam-value]` | 0 | `verdict` (ABORT/SCOPE-ONLY/PROCEED) **and `mode` (ABORT/LITE/DEEP)** — the spend decision, before any file is read |
-| `{scan} pack <dir> --out <recon> --agents {hunters}` | 1 | the whole recon pack. **Defaults to LITE sizing**: 3 headline bundles, top-8 files by `risk_score` inlined, everything else a read-on-demand manifest. `--deep` = every role + every file. `--roles a,b,c\|all`, `--focus N` to tune. |
+| `{scan} pack <dir> --out <recon> --agents {hunters}` | 1 | the whole recon pack. **Defaults to LITE sizing**: 3 headline bundles, top-8 files by `risk_score` inlined, everything else a read-on-demand manifest. `--deep` = every role + every file. `--roles a,b,c\|all`, `--focus N` to tune. `--known FILE` appends loop memory (pass 2+). |
 | `{scan} novelty --protocol P --mechanism M --sink S` | 0 and 3 | the prior-art query set. Run it in Phase 0 as a briefing, not just in Phase 3 as a gate. |
 | `{scan} known build/check/brief --protocol P` | 0 and 3 | the protocol's **known-issues register** (K.I.T-style): extract prior findings from its audit reports once, then every candidate is checked against them. `check` exits 3 on a duplicate. This is the pillar that got the Cork run killed *after* the PoC — now it dies before. |
 | `{scan} harness <file> [--system \| --fork --address <live> --rpc-env <ENV>] --out <test>` | 4 | Foundry invariant suite (discovery) or the Immunefi fork shape (submission) |
@@ -175,7 +175,8 @@ Adopt `posture.verdict`. Impact map = permissionless rows in `entries.md` with `
 
   **An agent gets exactly four things:** its short role prompt, its bundle path, the prior-art brief (already baked into the bundle by `pack --brief`), and the shared/bounty rules the bundle carries. Never the doctrine, never the recon directory, never another agent's output, never inlined source in the prompt.
 - **DEEP:** the full fleet, then completeness gate → coverage wave (`coverage-wave.md`) → skeptics (`skeptic-agent.md`). `references/hunting-fleet.md`.
-- **`INVARIANT` posture / `/auditooor FUZZ`:** five discovery agents on `PROPERTIES.md`, then Foundry (`invariant-discovery.md`). Not the hacking fleet.
+- **`INVARIANT` posture / `/auditooor FUZZ`:** five discovery agents on `PROPERTIES.md`, then Foundry. If `medusa` or `echidna` is installed, run that campaign too (`invariant-discovery.md`). Not the hacking fleet.
+- **`/auditooor LOOP [N]`:** the 12 solidity-auditor specialties, N passes (default 3), each later pass told what the earlier ones found. Pass 1 also runs the three headlines. Read `references/loop-mode.md` and follow it. EV and Abort B still apply. LOOP does not replace LITE.
 
 A candidate that cannot be tied to a line on the impact map is a code flaw, not a bug — it does not reach Phase 4. Hunters find; skeptics keep. Never re-litigate a skeptic `REFUTED` without a quoted counter-line.
 
@@ -217,7 +218,8 @@ Default is **LITE**. Everything below is a deliberate purchase.
 | **`/auditooor <path>`** — **this IS LITE; a bare `/auditooor` with no mode word is always LITE** | **≤3** | none | LITE | **the default** (`lite-mode.md`) |
 | `/auditooor QUICK` | 7 | none | `--roles` 7 | triage a target you already trust |
 | `/auditooor DEEP` | 15 | coverage + skeptics | `--deep` | `ev` says `mode: DEEP`, or the user asks |
-| `/auditooor FUZZ [path]` | 5 discovery | Foundry | LITE | protocol-logic hunt via invariants (`invariant-discovery.md`) |
+| `/auditooor LOOP [N]` | 12 × N, plus 3 headlines on pass 1 | known-findings between passes | `--deep` + `--known` from pass 2 | the v4 multi-pass hunt (`loop-mode.md`). Default N=3 |
+| `/auditooor FUZZ [path]` | 5 discovery | Foundry, plus Medusa/Echidna if installed | LITE | protocol-logic hunt via invariants (`invariant-discovery.md`) |
 | `/auditooor DIFF [base]` | per mode | per mode | per mode | freshest code first |
 | `/auditooor CROSSCHAIN` | per mode | per mode | per mode | bridges / message passing (`cross-chain.md`) |
 
@@ -232,7 +234,9 @@ Default is **LITE**. Everything below is a deliberate purchase.
 5. **EV can abort.** A run with no reachable value or no live program is aborted in Phase 0, before code is read.
 6. **The census is gate-critical.** Abort B is only as true as `entries`. Before trusting an abort — or a decision not to abort — on an unfamiliar guard idiom, run `benchmark/census/run.sh`. A census that calls a guarded function permissionless cannot abort; one that calls an open function guarded aborts a target worth hunting.
 7. **In LITE: never read `source.md`.** Use `focus.md` and the fleet bundles only, and read a deferred file by its path when a lead points at it. LITE does not even write `source.md` — if you find yourself reaching for the whole tree, that is the run leaking. (`--full-source` exists for the rare case you truly need it; it is not the default for a reason.)
-8. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
+8. **Spend is gated too.** LITE is the default and `ev`'s `mode` is binding; only the user's explicit `DEEP` or `LOOP` buys the fleet. Tokens spent past a gate that should have aborted are the same loss as a missed bug — see `benchmark/CALIBRATION.md`.
+9. **Hunters are read-only inside the target.** No Foundry file in `src/` or `test/` during the hunt. The prover writes the fork PoC under `auditooor-recon/poc/`.
+10. **Deploy scripts are in scope.** `script/`, `deploy/`, and `*.s.sol` are production code. Tests, mocks, interfaces, and `broadcast/` are not.
 
 ## Native hunt vs optional engines
 
@@ -299,6 +303,7 @@ When an ecosystem has no dedicated engine yet (Move, Vyper), run the adapter ref
 | Phase 2 prioritisation | `exploit-patterns.md` — what actually paid 2025–2026 |
 | Phase 2 hypothesis + confirm | `logic-vectors.md` — scenario·property·key-variable·`confirm`, the GPTScan-style finding structure |
 | `/auditooor FUZZ` or `INVARIANT` posture | `invariant-discovery.md`, `invariant-library.md` |
+| `/auditooor LOOP` | `loop-mode.md`, then `judging.md` |
 | Phase 3 | `novelty-gate.md` |
 | Phase 4 | `proof-standard.md`, `signature-vectors.md` |
 | bridges / message passing | `cross-chain.md` |

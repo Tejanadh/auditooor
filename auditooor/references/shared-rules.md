@@ -54,7 +54,7 @@ path: caller → function → state change → impact
 precondition: the state/role/config the attack needs, or "none"
 proof: concrete values / trace / quoted lines demonstrating it fires end-to-end
 impact: who loses what, bounded, with units (or what core function breaks, for how long)
-description: one sentence
+description: one sentence, Simplified Technical English (`report-language.md`)
 fix: minimal diff or one-sentence change
 
 LEAD | contract: Name | function: func | bug_class: kebab-tag | group_key: Contract | function | bug-class

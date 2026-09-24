@@ -70,9 +70,10 @@ pub fn classify_ecosystem(path: &Path, content: &str) -> Option<String> {
 }
 
 /// Directories never worth scanning (tests, deps, build artifacts).
+/// `script/` and `deploy/` stay. A deploy script is code the project wrote.
 const EXCLUDED_DIRS: &[&str] = &[
     "test", "tests", "lib", "libs", "mock", "mocks", "node_modules", "out",
-    "cache", "artifacts", "target", ".git", "script", "scripts", "interfaces",
+    "cache", "artifacts", "target", ".git", "broadcast", "interfaces",
     "dist", "build", "coverage", ".github",
 ];
 
@@ -84,6 +85,11 @@ fn is_excluded_dir(name: &str) -> bool {
 
 fn is_test_file(name: &str) -> bool {
     let lc = name.to_lowercase();
+    // `*.s.sol` is a Foundry deploy script. It stays in scope: constructor
+    // args, ownership handover, and seeded state are production code.
+    if lc.ends_with(".s.sol") {
+        return false;
+    }
     lc.ends_with(".t.sol")
         || lc.contains("test")
         || lc.contains("mock")
@@ -445,6 +451,27 @@ pub fn json_escape(s: &str) -> String {
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn deploy_scripts_stay_in_scope() {
+        let root = std::env::temp_dir().join(format!("auditooor-scope-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("script")).unwrap();
+        fs::create_dir_all(root.join("test")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("script/Deploy.s.sol"), "contract Deploy {}").unwrap();
+        fs::write(root.join("src/Vault.sol"), "contract Vault {}").unwrap();
+        fs::write(root.join("test/Vault.t.sol"), "contract VaultTest {}").unwrap();
+        let files = walk_files(&root);
+        let rel: Vec<_> = files
+            .iter()
+            .map(|p| p.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert!(rel.iter().any(|p| p == "script/Deploy.s.sol"), "{rel:?}");
+        assert!(rel.iter().any(|p| p == "src/Vault.sol"), "{rel:?}");
+        assert!(!rel.iter().any(|p| p.contains("Vault.t.sol")), "{rel:?}");
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn detects_solidity() {

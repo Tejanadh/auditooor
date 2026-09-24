@@ -3,7 +3,7 @@
 <p align="center"><i>Optimises dollars-per-run, not findings-per-run.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v0.8.3-skill-627EEA" />
+  <img src="https://img.shields.io/badge/v0.9.0-skill-627EEA" />
   <img src="https://img.shields.io/badge/EVM_native-optional_engines-9945FF" />
   <img src="https://img.shields.io/badge/proof-Foundry_fork_PoC-2ea44f" />
   <img src="https://img.shields.io/badge/runtimes-Claude_Code_·_Cursor_·_Grok-orange" />
@@ -43,6 +43,7 @@ Then, in the agent chat:
 /auditooor SCOPE https://immunefi.com/bounty/<program>   # should I even hunt this?  (2 commands, no code read)
 /auditooor ./src                                         # the default hunt — LITE
 /auditooor DEEP ./src                                    # buy the full 15-agent fleet (only when it pays)
+/auditooor LOOP ./src                                    # 12 specialties, 3 passes, each pass told what the last found
 ```
 
 Or just ask: *"run auditooor on src/Vault.sol"*.
@@ -130,6 +131,7 @@ subagents, else runs the same roles sequentially.
 | `/auditooor QUICK .` | 7 hunters | triage a target you already trust |
 | `/auditooor FUZZ .` | 5 + Foundry | invariant campaign for protocol-logic bugs |
 | `/auditooor DEEP .` | 15 + waves | the full fleet, when EV says it pays |
+| `/auditooor LOOP [N] .` | 12 × N | v4-style passes. Default 3. Later passes hunt new ground |
 | `/auditooor DIFF [ref]` | per mode | freshest code first |
 
 ---
