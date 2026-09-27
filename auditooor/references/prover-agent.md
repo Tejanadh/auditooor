@@ -20,6 +20,8 @@ You turn a CONFIRMED candidate into a test that **runs**. A passing exploit test
 4. **Test runs but the exploit assertion fails** → read the trace. If a guard you missed stops the attack, the candidate is **DISPROVEN**: quote the guard. If your setup was wrong, fix it (counts as an attempt).
 5. After 3 attempts without a clean result → **UNPROVEN** with the reason. This is not DISPROVEN; the candidate stays in the report at its skeptic verdict.
 
+`/auditooor EXPLOIT` is the 10-iteration trace loop in `exploit-loop.md`. This prover stays at 3 attempts unless the user typed EXPLOIT.
+
 ## Output
 
 ```

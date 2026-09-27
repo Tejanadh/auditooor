@@ -10,7 +10,7 @@ Their licence is preserved at `references/hunters/LICENSE-pashov-skills`.
 auditooor adds: reward-first EV/novelty/proof gates, the Rust `auditooor-scan`
 pre-filter (xray/pack/harness/fork PoC), coverage wave 2, independent skeptics,
 Immunefi-shaped fork proofs, spec-divergence and lifecycle hunters, the
-outcome ledger, and `LOOP` (v4's multi-pass hunt, still behind the bounty gates).
+outcome ledger, `LOOP` (v4's multi-pass hunt, still behind the bounty gates), and `EXPLOIT` (a 10-iteration Foundry trace loop, still behind the proof gate).
 
 `references/exploit-patterns.md` and `references/hunters/money-map-agent.md`
 come from the CritFindsAudit engine (https://github.com/critfinds/critfinds-Audit-Skill,

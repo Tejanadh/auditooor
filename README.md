@@ -3,7 +3,7 @@
 <p align="center"><i>Optimises dollars-per-run, not findings-per-run.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v0.9.0-skill-627EEA" />
+  <img src="https://img.shields.io/badge/v0.9.1-skill-627EEA" />
   <img src="https://img.shields.io/badge/EVM_native-optional_engines-9945FF" />
   <img src="https://img.shields.io/badge/proof-Foundry_fork_PoC-2ea44f" />
   <img src="https://img.shields.io/badge/runtimes-Claude_Code_·_Cursor_·_Grok-orange" />
@@ -132,6 +132,7 @@ subagents, else runs the same roles sequentially.
 | `/auditooor FUZZ .` | 5 + Foundry | invariant campaign for protocol-logic bugs |
 | `/auditooor DEEP .` | 15 + waves | the full fleet, when EV says it pays |
 | `/auditooor LOOP [N] .` | 12 × N | v4-style passes. Default 3. Later passes hunt new ground |
+| `/auditooor EXPLOIT` | 10 forge runs | one hypothesis. Rewrite the PoC from the revert trace until it passes |
 | `/auditooor DIFF [ref]` | per mode | freshest code first |
 
 ---
